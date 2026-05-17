@@ -11,6 +11,7 @@ export const viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  viewportFit: "cover",   // iPhone ホームバー safe area を有効化
 };
 
 export default function RootLayout({ children }) {

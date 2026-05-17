@@ -26,3 +26,14 @@ body {
 /* Hide scrollbar in horizontal filter strips */
 .overflow-x-auto::-webkit-scrollbar { display: none; }
 .overflow-x-auto { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Bottom nav — iPhone home bar safe area */
+.nav-safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Tap feedback for nav buttons */
+.nav-btn:active {
+  background-color: rgba(0, 0, 0, 0.04);
+  border-radius: 12px;
+}
