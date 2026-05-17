@@ -120,37 +120,51 @@ function GraduationContent({ studentId, includeProjected }) {
     <div className="flex-1 flex flex-col overflow-hidden">
 
       {/* ── 全体サマリー ─────────────────────────────────────────────────────── */}
-      <div className="flex-shrink-0 bg-white border-b border-gray-100 px-4 py-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-xs text-gray-400 font-medium">卒業要件 達成状況</div>
-            <div className="flex items-baseline gap-1 mt-0.5">
-              <span className={`text-2xl font-bold ${
-                passedItems.length === requiredItems.length && requiredItems.length > 0
-                  ? 'text-green-500' : 'text-gray-800'
-              }`}>
-                {passedItems.length}
-              </span>
-              <span className="text-sm text-gray-400">/ {requiredItems.length} 項目達成</span>
-            </div>
-          </div>
-          <div className="w-20">
-            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-green-400 rounded-full transition-all"
-                style={{
-                  width: requiredItems.length > 0
-                    ? `${(passedItems.length / requiredItems.length) * 100}%`
-                    : '0%',
-                }}
-              />
-            </div>
-            <div className="text-right text-xs text-gray-400 mt-0.5">
-              {requiredItems.length > 0
-                ? Math.round((passedItems.length / requiredItems.length) * 100)
-                : 0}%
-            </div>
-          </div>
+      <div className="flex-shrink-0 bg-white border-b border-gray-100 px-4 pt-4 pb-5">
+        {/* 上行: ラベル + パーセント */}
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-medium text-gray-400">卒業要件 達成状況</span>
+          <span className={`text-sm font-bold tabular-nums ${
+            passedItems.length === requiredItems.length && requiredItems.length > 0
+              ? 'text-green-500' : 'text-gray-500'
+          }`}>
+            {requiredItems.length > 0
+              ? Math.round((passedItems.length / requiredItems.length) * 100)
+              : 0}%
+          </span>
+        </div>
+
+        {/* 全幅プログレスバー */}
+        <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-500 ${
+              passedItems.length === requiredItems.length && requiredItems.length > 0
+                ? 'bg-green-400' : 'bg-blue-400'
+            }`}
+            style={{
+              width: requiredItems.length > 0
+                ? `${(passedItems.length / requiredItems.length) * 100}%`
+                : '0%',
+            }}
+          />
+        </div>
+
+        {/* 下行: 項目数 */}
+        <div className="flex items-baseline gap-1 mt-2.5">
+          <span className={`text-2xl font-bold leading-none ${
+            passedItems.length === requiredItems.length && requiredItems.length > 0
+              ? 'text-green-500' : 'text-gray-800'
+          }`}>
+            {passedItems.length}
+          </span>
+          <span className="text-sm text-gray-400">
+            / {requiredItems.length} 項目達成
+          </span>
+          {passedItems.length === requiredItems.length && requiredItems.length > 0 && (
+            <span className="ml-1 text-xs font-semibold text-green-500 bg-green-50 px-2 py-0.5 rounded-full">
+              ✓ 完了
+            </span>
+          )}
         </div>
       </div>
 

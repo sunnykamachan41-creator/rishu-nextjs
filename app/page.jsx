@@ -626,41 +626,6 @@ export default function Page() {
         />
       )}
 
-      {/* Header */}
-      <header className="bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between flex-shrink-0">
-        <div>
-          <div className="text-base font-bold text-gray-900 leading-tight">履修管理</div>
-          <div className="text-xs text-gray-400">
-            {selectedIds.length}科目 · {totalCredits}単位
-            {department && (
-              <span className="ml-2 text-gray-300">|</span>
-            )}
-            {department && (
-              <button
-                onClick={() => handleDepartmentSelect('')}
-                className="ml-1 text-gray-400 hover:text-blue-500 transition-colors"
-                title="専攻を変更する"
-              >
-                {getDepartmentLabel(department, departmentsMap)}
-              </button>
-            )}
-          </div>
-        </div>
-        <div className="flex gap-1.5 items-center">
-          {duplicateCount > 0 && (
-            <span className="bg-orange-100 text-orange-600 text-xs font-semibold px-2.5 py-1 rounded-full">⚠ {duplicateCount}件重複</span>
-          )}
-          {shortCount > 0 && (
-            <span className="bg-amber-100 text-amber-600 text-xs font-semibold px-2.5 py-1 rounded-full">{shortCount}件不足</span>
-          )}
-          {shortCount === 0 && duplicateCount === 0 && (
-            <span className="bg-green-100 text-green-600 text-xs font-semibold px-2.5 py-1 rounded-full">✓ 問題なし</span>
-          )}
-          {/* Live indicator */}
-          <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse ml-1" title="30秒ごとに自動更新" />
-        </div>
-      </header>
-
       {/* Content */}
       <div className="flex-1 overflow-hidden">
         {tab === 'timetable' && (
