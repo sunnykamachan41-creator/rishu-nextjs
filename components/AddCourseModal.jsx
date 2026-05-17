@@ -1,0 +1,349 @@
+'use client'
+import { useState, useMemo } from 'react'
+import CourseModal from './CourseModal'
+import { isCourseEligible } from '@/lib/eligibility'
+
+// ── 定数 ──────────────────────────────────────────────────────────────────────
+
+const DAY_LBL = { MON: '月', TUE: '火', WED: '水', THU: '木', FRI: '金' }
+
+/**
+ * DBの term 文字列 → ターム番号（整数）
+ * これに含まれる授業のみがターム制として扱われる。
+ * それ以外（春学期・秋学期・通年 など）は通常授業（term = null）。
+ */
+const TERM_STR_TO_NUM = {
+  '第1ターム': 1,
+  '第2ターム': 2,
+  '第3ターム': 3,
+  '第4ターム': 4,
+}
+
+const TERM_NUM_TO_STR = {
+  1: '第1ターム',
+  2: '第2ターム',
+  3: '第3ターム',
+  4: '第4ターム',
+}
+
+// ── ユーティリティ ────────────────────────────────────────────────────────────
+
+function filterBySlot(courses, day, period) {
+  return courses.filter(c => {
+    const t = c.normalized_time
+    if (!t || t === 'EXTRA' || t === '0') return false
+    return String(t).split('|').some(slot => {
+      const m = slot.trim().match(/^(MON|TUE|WED|THU|FRI)_(\d)$/)
+      return m && m[1] === day && +m[2] === period
+    })
+  })
+}
+
+/**
+ * 学年・学期の両条件を満たすコースだけを残す。
+ * isCourseEligible は lib/eligibility の共通関数（CourseList・API と同一ルール）。
+ */
+function filterEligible(courses, grade, semester) {
+  return courses.filter(c => isCourseEligible(c, grade, semester))
+}
+
+/** コースがターム制かどうか */
+function isTermCourse(course) {
+  return course.term in TERM_STR_TO_NUM
+}
+
+// ── AddCourseModal ────────────────────────────────────────────────────────────
+
+/**
+ * 授業追加ボトムシート。
+ *
+ * ターム判定はすべて DB の course.term フィールドで自動決定。
+ * ユーザーが手動でタームを選ぶ UI は持たない。
+ *
+ * @param {object}       props
+ * @param {string}       props.day
+ * @param {number}       props.period
+ * @param {number|null}  props.lockedTerm
+ *   - null   : 空セルクリック → 通常授業・ターム授業を全表示
+ *   - 1〜4  : 空ハーフクリック → そのターム番号の授業のみ表示
+ * @param {'spring'|'fall'} props.semester
+ * @param {number}       props.academicYear
+ * @param {object[]}     props.courses         - カタログ（Google Sheets）
+ * @param {object[]}     props.existingEntries - 現在の履修エントリ
+ * @param {(data)=>void} props.onAdd
+ * @param {()=>void}     props.onClose
+ */
+export default function AddCourseModal({
+  day, period, lockedTerm, semester,
+  academicYear, grade, courses, existingEntries,
+  onAdd, onClose,
+}) {
+  const [query,       setQuery]      = useState('')
+  const [customTitle, setCustomTitle] = useState('')
+  const [customMode,  setCustomMode]  = useState(false)
+  const [preview,     setPreview]    = useState(null)  // 詳細プレビュー対象のコース
+
+  // ── コース絞り込み ────────────────────────────────────────────────────────
+
+  /** 学年・学期・スロットで絞ったコース（登録可能候補のみ） */
+  const slotCourses = useMemo(
+    () => filterBySlot(filterEligible(courses, grade, semester), day, period),
+    [courses, grade, semester, day, period]
+  )
+
+  /**
+   * lockedTerm に応じてさらに絞る:
+   *   null    → 全コース表示（通常 + 全ターム混在）
+   *   1〜4  → そのタームのコースのみ
+   */
+  const termFilteredCourses = useMemo(() => {
+    if (lockedTerm == null) return slotCourses
+    const termStr = TERM_NUM_TO_STR[lockedTerm]
+    return slotCourses.filter(c => c.term === termStr)
+  }, [slotCourses, lockedTerm])
+
+  /** 検索クエリで絞る */
+  const filtered = useMemo(() => {
+    if (!query) return termFilteredCourses
+    const q = query.toLowerCase()
+    return termFilteredCourses.filter(c =>
+      c.course_name?.toLowerCase().includes(q) ||
+      c.intructor?.toLowerCase().includes(q)
+    )
+  }, [termFilteredCourses, query])
+
+  // ── ハンドラ ────────────────────────────────────────────────────────────────
+
+  function handleSelectCourse(c) {
+    /**
+     * term の決定ルール:
+     *   DB の c.term が '第NターM' → TERM_STR_TO_NUM で数値化（ターム制）
+     *   それ以外（春学期・通年など）→ null（通常授業）
+     *
+     *   lockedTerm が設定されている場合（ハーフクリック）:
+     *     カタログから自動推定された term を使う（通常は lockedTerm と一致）
+     */
+    const catalogTerm = TERM_STR_TO_NUM[c.term] ?? null
+
+    onAdd({
+      day,
+      period,
+      term:        catalogTerm,       // null=通常授業 / 1〜4=ターム制
+      courseTitle: c.course_name,
+      room:        c.room ?? '',      // 教室をエントリに含める
+      classId:     c.class_id,
+    })
+  }
+
+  function handleCustomAdd() {
+    const title = customTitle.trim()
+    if (!title) return
+    onAdd({
+      day,
+      period,
+      // lockedTerm が設定されていれば（ハーフクリック）そのターム番号を使用
+      // 空セルクリックからの手動入力は通常授業扱い（null）
+      term:        lockedTerm ?? null,
+      courseTitle: title,
+      room:        '',
+      classId:     null,
+    })
+  }
+
+  // ── 表示用ラベル ────────────────────────────────────────────────────────────
+
+  const semLabel = semester === 'spring' ? '春学期' : '秋学期'
+  const [oddT, evnT] = semester === 'spring' ? [1, 2] : [3, 4]
+
+  const lockedLabel = lockedTerm != null ? TERM_NUM_TO_STR[lockedTerm] : null
+
+  // ── レンダリング ────────────────────────────────────────────────────────────
+  return (
+    <>
+    <div className="fixed inset-0 z-50 flex items-end" style={{ maxWidth: 430, margin: '0 auto' }}>
+      {/* オーバーレイ */}
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+
+      {/* ボトムシート */}
+      <div className="relative w-full bg-white rounded-t-3xl flex flex-col"
+        style={{ maxHeight: '80dvh' }}>
+
+        {/* ── ハンドル + ヘッダー ──────────────────────────────────────────── */}
+        <div className="flex-shrink-0 px-4 pt-2 pb-3 border-b border-gray-100">
+          <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-3" />
+
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="text-base font-bold text-gray-900">授業を追加</div>
+              <div className="text-xs text-gray-400 mt-0.5">
+                {DAY_LBL[day]}曜 {period}限 · {grade}年生{semLabel}
+                {lockedLabel && (
+                  <span className={`ml-1.5 font-semibold ${
+                    lockedTerm % 2 === 1 ? 'text-blue-500' : 'text-violet-500'
+                  }`}>
+                    {lockedLabel}
+                  </span>
+                )}
+              </div>
+
+              {/* 空セルクリック時の説明 */}
+              {lockedTerm == null && (
+                <div className="text-xs text-gray-300 mt-1">
+                  通常授業はセル全体・ターム授業は自動で上下分割されます
+                </div>
+              )}
+            </div>
+            <button onClick={onClose} className="text-gray-400 text-xl leading-none p-1">×</button>
+          </div>
+        </div>
+
+        {/* ── 検索バー ─────────────────────────────────────────────────────── */}
+        <div className="flex-shrink-0 px-4 py-2 border-b border-gray-50">
+          <div className="relative">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
+              fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text" value={query} onChange={e => setQuery(e.target.value)}
+              placeholder="授業名・担当者で検索"
+              autoFocus
+              className="w-full bg-gray-50 rounded-xl pl-9 pr-8 py-2 text-sm
+                         border border-gray-100
+                         focus:outline-none focus:ring-2 focus:ring-blue-300"
+            />
+            {query && (
+              <button onClick={() => setQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
+                ✕
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* ── コース一覧 ───────────────────────────────────────────────────── */}
+        <div className="flex-1 overflow-auto px-3 py-2">
+
+          {/* 空状態 */}
+          {filtered.length === 0 && !query && (
+            <div className="text-center py-8 text-gray-400">
+              <div className="text-2xl mb-2">📭</div>
+              <div className="text-sm">
+                {lockedLabel
+                  ? `${lockedLabel}の授業がこの時間枠にありません`
+                  : 'この時間枠の授業がカタログにありません'}
+              </div>
+              <div className="text-xs mt-1 text-gray-300">手動入力で追加できます</div>
+            </div>
+          )}
+          {filtered.length === 0 && query && (
+            <div className="text-center py-8 text-sm text-gray-400">
+              「{query}」に一致する授業が見つかりません
+            </div>
+          )}
+
+          {/* コースリスト */}
+          {filtered.map(c => {
+            const termNum  = TERM_STR_TO_NUM[c.term] ?? null
+            const isTerm   = termNum != null
+            const isOdd    = isTerm && termNum % 2 === 1
+
+            return (
+              <button key={c.class_id}
+                onClick={() => setPreview(c)}
+                className="w-full text-left rounded-xl px-3 py-2.5 mb-1.5 border
+                           bg-gray-50 border-gray-100
+                           hover:bg-blue-50 hover:border-blue-200
+                           active:scale-[0.99] transition-all"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 min-w-0">
+                    {/* 授業名 */}
+                    <div className="text-sm font-semibold text-gray-900 truncate">
+                      {c.course_name}
+                    </div>
+                    {/* 備考 */}
+                    {c.note && (
+                      <div className="text-xs text-amber-700 mt-0.5 truncate opacity-80">📝 {c.note}</div>
+                    )}
+                    {/* メタ情報 */}
+                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                      {/* ターム or 通常バッジ */}
+                      {isTerm ? (
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
+                          isOdd
+                            ? 'bg-blue-50 text-blue-600'
+                            : 'bg-violet-50 text-violet-600'
+                        }`}>
+                          {c.term}
+                        </span>
+                      ) : (
+                        <span className="text-xs px-1.5 py-0.5 rounded-full font-medium
+                                         bg-indigo-50 text-indigo-500">
+                          通常授業
+                        </span>
+                      )}
+                      {/* 教室 */}
+                      {c.room && (
+                        <span className="text-xs text-gray-400 truncate">{c.room}</span>
+                      )}
+                      {/* 担当者 */}
+                      {c.intructor && (
+                        <span className="text-xs text-gray-400 truncate">{c.intructor}</span>
+                      )}
+                    </div>
+                  </div>
+                  <span className="text-xs text-blue-400 flex-shrink-0 font-medium">追加</span>
+                </div>
+              </button>
+            )
+          })}
+
+          {/* ── 手動入力 ──────────────────────────────────────────────────── */}
+          <div className="mt-2 pt-2 border-t border-gray-100">
+            {customMode ? (
+              <div className="flex gap-2">
+                <input
+                  type="text" value={customTitle}
+                  onChange={e => setCustomTitle(e.target.value)}
+                  placeholder="授業名を入力…"
+                  onKeyDown={e => e.key === 'Enter' && handleCustomAdd()}
+                  className="flex-1 bg-gray-50 rounded-xl px-3 py-2 text-sm border border-gray-100
+                             focus:outline-none focus:ring-2 focus:ring-blue-300"
+                />
+                <button onClick={handleCustomAdd}
+                  className="bg-blue-500 text-white px-3 py-2 rounded-xl text-sm font-semibold">
+                  追加
+                </button>
+                <button onClick={() => { setCustomMode(false); setCustomTitle('') }}
+                  className="text-gray-400 px-2 text-sm">✕</button>
+              </div>
+            ) : (
+              <button onClick={() => setCustomMode(true)}
+                className="w-full text-center text-xs text-blue-500 font-medium py-2
+                           hover:text-blue-600 transition-colors">
+                ＋ 手動で授業名を入力
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {/* ── 授業詳細プレビュー（CourseModal） ──────────────────────────────── */}
+    {preview && (
+      <CourseModal
+        course={preview}
+        isSelected={false}
+        isConflict={false}
+        toggling={false}
+        onToggle={() => { handleSelectCourse(preview); setPreview(null) }}
+        onClose={() => setPreview(null)}
+        enrollStatus={undefined}
+        enrollmentVersion="legacy"
+      />
+    )}
+  </>
+  )
+}
