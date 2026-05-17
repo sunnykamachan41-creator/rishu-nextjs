@@ -17,20 +17,25 @@ const fetcher = (url) =>
  * モード ① 卒業要件 / ② 副免許・資格 を切り替えて表示する。
  *
  * Props:
- *   studentId  : string — URL params から取得した確定済み student_id
- *   onRefresh? : () => void
+ *   studentId          : string — URL params から取得した確定済み student_id
+ *   includeProjected?  : boolean — 履修予定を含むモード
+ *   onToggleProjected? : () => void
+ *   onRefresh?         : () => void
  */
-export default function GraduationTabV2({ onRefresh, studentId }) {
+export default function GraduationTabV2({ onRefresh, studentId, includeProjected = false, onToggleProjected }) {
   const [mode, setMode] = useState('graduation') // 'graduation' | 'license'
 
   return (
     <div className="h-full flex flex-col">
+      {onToggleProjected && (
+        <ProjectedToggle active={includeProjected} onToggle={onToggleProjected} />
+      )}
       <ModeBar mode={mode} onChange={setMode} />
       {mode === 'graduation' && (
-        <GraduationContent studentId={studentId} onRefresh={onRefresh} />
+        <GraduationContent studentId={studentId} onRefresh={onRefresh} includeProjected={includeProjected} />
       )}
       {mode === 'license' && (
-        <LicenseContent studentId={studentId} />
+        <LicenseContent studentId={studentId} includeProjected={includeProjected} />
       )}
     </div>
   )
@@ -65,9 +70,9 @@ function ModeBar({ mode, onChange }) {
 
 // ── GraduationContent ─────────────────────────────────────────────────────────
 
-function GraduationContent({ studentId }) {
+function GraduationContent({ studentId, includeProjected }) {
   const swrKey = studentId
-    ? `/api/graduation/ui?student_id=${studentId}`
+    ? `/api/graduation/ui?student_id=${studentId}${includeProjected ? '&include_projected=1' : ''}`
     : '/api/graduation/ui'
 
   const { data, isLoading, error, mutate } = useSWR(swrKey, fetcher, {
@@ -161,9 +166,9 @@ function GraduationContent({ studentId }) {
 
 // ── LicenseContent ────────────────────────────────────────────────────────────
 
-function LicenseContent({ studentId }) {
+function LicenseContent({ studentId, includeProjected }) {
   const swrKey = studentId
-    ? `/api/additional-license?student_id=${studentId}`
+    ? `/api/additional-license?student_id=${studentId}${includeProjected ? '&include_projected=1' : ''}`
     : '/api/additional-license'
 
   const { data, isLoading, error, mutate } = useSWR(swrKey, fetcher, {
@@ -734,6 +739,35 @@ function RequirementItem({ item }) {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ── ProjectedToggle ───────────────────────────────────────────────────────────
+
+function ProjectedToggle({ active, onToggle }) {
+  return (
+    <div className="flex-shrink-0 bg-white border-b border-gray-100 px-3 py-2 flex items-center justify-between">
+      <div className="flex flex-col">
+        <span className="text-xs font-semibold text-gray-700">履修予定を含む</span>
+        <span className="text-xs text-gray-400 mt-0.5">
+          {active ? '履修予定・履修中を取得済みとして集計中' : '取得済みのみを集計中'}
+        </span>
+      </div>
+      <button
+        onClick={onToggle}
+        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                    transition-colors duration-200 focus:outline-none
+                    ${active ? 'bg-blue-500' : 'bg-gray-200'}`}
+        role="switch"
+        aria-checked={active}
+      >
+        <span
+          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow
+                      transition duration-200 ease-in-out
+                      ${active ? 'translate-x-5' : 'translate-x-0'}`}
+        />
+      </button>
     </div>
   )
 }

@@ -53,7 +53,8 @@ export async function GET(request) {
 
     // ── Parallel fetch ──────────────────────────────────────────────────────
     const { searchParams } = new URL(request.url)
-    const studentId = normalizeId(searchParams.get('student_id') || process.env.STUDENT_ID || 'student_001')
+    const studentId        = normalizeId(searchParams.get('student_id') || process.env.STUDENT_ID || 'student_001')
+    const includeProjected = searchParams.get('include_projected') === '1'
 
     const [uiRows, ruleRows, studentRows, categoryFormulaRows, progressRows, sheetsData] = await Promise.all([
       fetchGraduationUIAll(),
@@ -72,17 +73,31 @@ export async function GET(request) {
     }
 
     // ── Build credit map for current student ────────────────────────────────
-    // students_summary row → { normalizedCategory: creditValue }
+    // 通常: students_summary の行を直接参照
+    // includeProjected: progress_auto の COMPLETED + IN_PROGRESS + PLANNED を集計
     const creditMap = new Map()
-    const studentRow = studentRows.find(r => r.student_id === studentId)
-    if (studentRow) {
-      for (const [rawKey, rawVal] of Object.entries(studentRow)) {
-        const keyNorm = normalizeId(rawKey)
-        if (!keyNorm || keyNorm === 'student_id' || keyNorm === 'department_id') continue
-        creditMap.set(keyNorm.toUpperCase(), Number(rawVal) || 0)  // 大文字統一
+
+    if (includeProjected) {
+      // 履修予定を含む: progress_auto を集計して creditMap を構築
+      for (const row of progressRows) {
+        const status = String(row.status ?? '').trim().toUpperCase()
+        if (!['COMPLETED', 'IN_PROGRESS', 'PLANNED'].includes(status)) continue
+        const cat = normCat(row.final_category ?? '')
+        if (!cat) continue
+        creditMap.set(cat, (creditMap.get(cat) || 0) + (Number(row.credits) || 0))
       }
     } else {
-      console.warn('[GET /api/graduation/ui] student not found in students_summary:', studentId)
+      // 通常: students_summary 直参照
+      const studentRow = studentRows.find(r => r.student_id === studentId)
+      if (studentRow) {
+        for (const [rawKey, rawVal] of Object.entries(studentRow)) {
+          const keyNorm = normalizeId(rawKey)
+          if (!keyNorm || keyNorm === 'student_id' || keyNorm === 'department_id') continue
+          creditMap.set(keyNorm.toUpperCase(), Number(rawVal) || 0)  // 大文字統一
+        }
+      } else {
+        console.warn('[GET /api/graduation/ui] student not found in students_summary:', studentId)
+      }
     }
 
     // ── category_formula を適用して派生カテゴリを creditMap に追加 ───────────

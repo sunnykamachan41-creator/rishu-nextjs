@@ -735,7 +735,11 @@ export default function Page() {
         )}
         {tab === 'requirements' && (
           <div className="h-full flex flex-col">
-            <GraduationTabV2 studentId={studentId} />
+            <GraduationTabV2
+              studentId={studentId}
+              includeProjected={includeProjected}
+              onToggleProjected={handleToggleProjected}
+            />
           </div>
         )}
         {tab === 'summary' && (
@@ -745,6 +749,8 @@ export default function Page() {
               courses={data?.courses ?? []}
               enrollment={data?.enrollment ?? []}
               creditSummary={creditSummary}
+              includeProjected={includeProjected}
+              onToggleProjected={handleToggleProjected}
             />
           </div>
         )}

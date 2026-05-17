@@ -56,10 +56,11 @@ const STATUS_ORDER = {
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url)
-    const studentId = normalizeId(
+    const studentId        = normalizeId(
       searchParams.get('student_id') || process.env.STUDENT_ID || 'student_001'
     )
-    console.log('[additional-license GET] student_id:', studentId)
+    const includeProjected = searchParams.get('include_projected') === '1'
+    console.log('[additional-license GET] student_id:', studentId, '| includeProjected:', includeProjected)
 
     // ── 全シートを並列 fetch ──────────────────────────────────────────────
     const [
@@ -159,25 +160,37 @@ export async function GET(request) {
     )
     console.log('[additional-license GET] active:', [...activeSet])
 
-    // ── ③ students_summary から creditMap を構築 ───────────────────────────
+    // ── ③ creditMap を構築 ────────────────────────────────────────────────
     //
-    // graduation/ui と同じアプローチ:
-    //   students_summary のこの student の行を見て
-    //   category 列の値を creditMap に格納する
+    // 通常: students_summary 直参照
+    // includeProjected: progress_auto の COMPLETED + IN_PROGRESS + PLANNED を集計
     //
     const creditMap = new Map()   // normKey(category) → number (単位数)
-    const summaryRow = studentSummaryRows.find(r => r.student_id === studentId)
 
-    if (summaryRow) {
-      for (const [rawKey, rawVal] of Object.entries(summaryRow)) {
-        const keyNorm = normKey(rawKey)
-        if (!keyNorm || keyNorm === 'STUDENT_ID' || keyNorm === 'DEPARTMENT_ID') continue
-        creditMap.set(keyNorm, Number(rawVal) || 0)
+    if (includeProjected) {
+      // 履修予定を含む: progress_auto を集計して creditMap を構築
+      for (const row of progressRows) {
+        const status = String(row.status ?? '').trim().toUpperCase()
+        if (!['COMPLETED', 'IN_PROGRESS', 'PLANNED'].includes(status)) continue
+        const cat = normKey(row.final_category ?? '')
+        if (!cat) continue
+        creditMap.set(cat, (creditMap.get(cat) || 0) + (Number(row.credits) || 0))
       }
-      console.log('[additional-license GET] creditMap entries:',
+      console.log('[additional-license GET] creditMap (projected) entries:',
         [...creditMap.entries()].map(([k, v]) => `${k}=${v}`))
     } else {
-      console.warn('[additional-license GET] ⚠ student not found in students_summary:', studentId)
+      const summaryRow = studentSummaryRows.find(r => r.student_id === studentId)
+      if (summaryRow) {
+        for (const [rawKey, rawVal] of Object.entries(summaryRow)) {
+          const keyNorm = normKey(rawKey)
+          if (!keyNorm || keyNorm === 'STUDENT_ID' || keyNorm === 'DEPARTMENT_ID') continue
+          creditMap.set(keyNorm, Number(rawVal) || 0)
+        }
+        console.log('[additional-license GET] creditMap entries:',
+          [...creditMap.entries()].map(([k, v]) => `${k}=${v}`))
+      } else {
+        console.warn('[additional-license GET] ⚠ student not found in students_summary:', studentId)
+      }
     }
 
     // ── ④ progress_auto からコース一覧を構築（表示専用） ──────────────────
