@@ -24,6 +24,7 @@ export async function GET() {
       studentsSummary,
       departmentRows,
       userDepartment,
+      userCurriculumYear,
     } = await fetchAllSheets(studentId)
 
     const departments = (departmentRows ?? [])
@@ -41,12 +42,12 @@ export async function GET() {
     const completedIds = new Set(
       normalizedEnrollment
         .filter(e => e.status === 'COMPLETED')
-        .map(e => e.class_id)
+        .map(e => `${e.class_id}|${e.academic_year ?? ''}`)
     )
     const projectedIds = new Set(
       normalizedEnrollment
         .filter(e => ['COMPLETED', 'IN_PROGRESS', 'PLANNED'].includes(e.status))
-        .map(e => e.class_id)
+        .map(e => `${e.class_id}|${e.academic_year ?? ''}`)
     )
 
     const conflicts      = detectConflicts(courses, selectedIds)
@@ -71,6 +72,7 @@ export async function GET() {
       projectedRequirements: projectedReqs,
       departments,
       userDepartment:        userDepartment || null,
+      userCurriculumYear:    userCurriculumYear ?? null,
       studentId,
     })
   } catch (err) {

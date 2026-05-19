@@ -12,7 +12,7 @@ import {
   upsertSimpleLicenseResult,
   removeLicenseResult,
 } from '@/lib/sheets'
-import { evaluateCondition } from '@/lib/graduation'
+import { evaluateCondition, filterRulesByYear } from '@/lib/graduation'
 
 export const dynamic = 'force-dynamic'
 
@@ -89,7 +89,8 @@ export async function GET(request) {
       fetchAllSheets(studentId),
     ])
 
-    const departmentId = normKey(sheetsData.userDepartment || '')
+    const departmentId   = normKey(sheetsData.userDepartment || '')
+    const curriculumYear = sheetsData.userCurriculumYear ?? null
 
     // ══════════════════════════════════════════════════════════════════════
     // ⑦⑧⑨⑪ シート診断ログ — ヘッダー名・行数・全データを出力
@@ -230,8 +231,14 @@ export async function GET(request) {
     // または:   license_id  | category | required_credits | condition | note
     // getRuleLid() がどちらにも対応する
     //
+    // curriculum_year が設定されている場合、start_year/end_year 範囲外のルールを除外する
+    const filteredRuleRows = filterRulesByYear(ruleRows, curriculumYear)
+    console.log('[additional-license GET] ruleRows:', ruleRows.length,
+      '→ filteredRuleRows:', filteredRuleRows.length,
+      '(curriculumYear:', curriculumYear, ')')
+
     const rulesByLicense = new Map()  // normKey(lid) → Map<normKey(cat), rule>
-    for (const r of ruleRows) {
+    for (const r of filteredRuleRows) {
       const lid = getRuleLid(r)
       const cat = normKey(r.category || '')
       if (!lid || !cat) continue

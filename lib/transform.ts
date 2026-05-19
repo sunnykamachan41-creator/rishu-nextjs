@@ -32,7 +32,8 @@ export interface NormalizedCourse {
   raw_category: string
   sub_category: string
   tags:         string
-  year: string
+  year: string              // grade restriction (e.g. "1", "2", "")
+  academic_year: number | null  // calendar year the course is offered (e.g. 2025)
   class: string
   intructor: string
   note: string
@@ -49,9 +50,12 @@ export interface NormalizedEnrollment {
   class_id: string
   /** Parent course — used for credit dedup and graduation requirements */
   course_id: string
+  /** Student grade at time of enrollment (1–4) */
   year: number | null
   semester: 'spring' | 'fall' | null
   status: EnrollmentStatus
+  /** Calendar year the course was offered (e.g. 2025). Used for course JOIN in progress_auto. */
+  academic_year: number | null
 }
 
 /** Result of buildEnrollmentMaps */
@@ -137,6 +141,18 @@ export function normalizeCourse(row: Record<string, string>): NormalizedCourse {
   const termCode = toTermCode(rawTerm)
   const termJp   = normalizeTermDisplay(rawTerm)   // canonical Japanese for all downstream use
 
+  // academic_year: the calendar year this course is offered (e.g. 2025).
+  // Stored as a number; null when absent (legacy rows without this column).
+  const rawAY   = row.academic_year || ''
+  const ayNum   = rawAY ? parseInt(rawAY, 10) : NaN
+  const academic_year = Number.isFinite(ayNum) ? ayNum : null
+
+  const KNOWN_KEYS = new Set([
+    'class_id','course_id','course_name','credits','term','term_code',
+    'normalized_time','day_time','room','raw_category','category',
+    'sub_category','tags','year','academic_year','class','intructor','instructor','note',
+  ])
+
   return {
     class_id:        classId,
     course_id:       courseId,
@@ -151,16 +167,12 @@ export function normalizeCourse(row: Record<string, string>): NormalizedCourse {
     sub_category:    (row.sub_category || '').trim(),
     tags:            (row.tags || '').trim(),
     year:            normalizeYearString(row.year),
+    academic_year,
     class:           (row.class || '').trim(),
     intructor:       (row.intructor || row.instructor || '').trim(),
     note:            (row.note || '').trim(),
     ...Object.fromEntries(
-      Object.entries(row).filter(([k]) =>
-        !['class_id','course_id','course_name','credits','term','term_code',
-          'normalized_time','day_time','room','raw_category','category',
-          'sub_category','tags','year','class','intructor','instructor',
-          'note'].includes(k)
-      )
+      Object.entries(row).filter(([k]) => !KNOWN_KEYS.has(k))
     ),
   }
 }
@@ -195,12 +207,16 @@ export function normalizeEnrollmentRow(
       rawStatus === 'RE_ENROLL'   ? 'RE_ENROLL'   :
       'COMPLETED'
 
+    const rawAY = row.academic_year || ''
+    const ayNum = rawAY ? parseInt(rawAY, 10) : NaN
+
     return {
-      class_id:  classId,
-      course_id: courseId,
-      year:      row.year ? Number(row.year) : null,
-      semester:  normalizeSemester(row.semester),
+      class_id:      classId,
+      course_id:     courseId,
+      year:          row.year ? Number(row.year) : null,
+      semester:      normalizeSemester(row.semester),
       status,
+      academic_year: Number.isFinite(ayNum) ? ayNum : null,
     }
   } else {
     // Legacy: class_id + selected
@@ -212,11 +228,12 @@ export function normalizeEnrollmentRow(
     if (!classId) return null
 
     return {
-      class_id:  classId,
-      course_id: courseId,
-      year:      null,
-      semester:  null,
-      status:    'COMPLETED',
+      class_id:      classId,
+      course_id:     courseId,
+      year:          null,
+      semester:      null,
+      status:        'COMPLETED',
+      academic_year: null,
     }
   }
 }
@@ -236,8 +253,10 @@ export function normalizeEnrollment(
   for (const row of rows) {
     const e = normalizeEnrollmentRow(row, version, studentId)
     if (!e) continue
-    if (seen.has(e.class_id)) continue
-    seen.add(e.class_id)
+    // Composite key: class_id + academic_year prevents wrong dedup when same class exists across years
+    const ck = `${e.class_id}|${e.academic_year ?? ''}`
+    if (seen.has(ck)) continue
+    seen.add(ck)
     result.push(e)
   }
 
@@ -250,7 +269,7 @@ export function normalizeEnrollment(
  * selectedIds — Set of class_ids for all UI components.
  *   Also includes course_ids so that components checking c.course_id still work.
  *
- * statusMap — class_id → status (and course_id → status as fallback).
+ * statusMap — "class_id|academic_year" → status (composite key, same as selectedIds).
  *
  * enrolledByGradeSem — "year:semester" → class_id[] for TimetableV2 grade filtering.
  */
@@ -260,16 +279,16 @@ export function buildEnrollmentMaps(enrollment: NormalizedEnrollment[]): Enrollm
   const enrolledByGradeSem = new Map<string, string[]>()
 
   for (const e of enrollment) {
-    // class_id is the sole primary key for UI selection checks.
-    // course_id is intentionally NOT added here — adding it would cause
-    // every section sharing the same course_id to appear selected.
-    selectedIds.add(e.class_id)
-    statusMap.set(e.class_id, e.status)
+    // Composite key: class_id|academic_year ensures same class_id in different years
+    // doesn't cause cross-year selection leakage (e.g. 70101200-01|2025).
+    const ck = `${e.class_id}|${e.academic_year ?? ''}`
+    selectedIds.add(ck)
+    statusMap.set(ck, e.status)
 
     if (e.year != null && e.semester) {
       const key = `${e.year}:${e.semester}`
       if (!enrolledByGradeSem.has(key)) enrolledByGradeSem.set(key, [])
-      enrolledByGradeSem.get(key)!.push(e.class_id)
+      enrolledByGradeSem.get(key)!.push(ck)
     }
   }
 
@@ -307,7 +326,11 @@ export function buildEnrollmentMapsWithCourses(
       // Resolve to the catalog's first *sectioned* class_id only if one exists.
       // Never add the bare course_id itself — that would match every section in the catalog.
       const sectionClassId = courseIdToSectionClassId.get(e.course_id)
-      if (sectionClassId) maps.selectedIds.add(sectionClassId)
+      if (sectionClassId) {
+        // For legacy entries without academic_year, resolve the catalog course's academic_year
+        const catalogCourse = courses.find(c => c.class_id === sectionClassId)
+        maps.selectedIds.add(`${sectionClassId}|${catalogCourse?.academic_year ?? ''}`)
+      }
     }
   }
 

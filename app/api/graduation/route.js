@@ -3,9 +3,28 @@ import {
   fetchStudentsSummaryAll,
   fetchGraduationRuleAll,
   fetchCategoryFormulaAll,
+  fetchUsersAll,
   writeGraduationResult,
 } from '@/lib/sheets'
 import { computeGraduationResults } from '@/lib/graduation'
+import { normalizeId } from '@/lib/transform'
+
+/**
+ * Build a Map<student_id, curriculum_year> from users sheet rows.
+ * curriculum_year is stored as a number; missing → entry omitted (caller gets null via Map.get).
+ */
+function buildCurriculumYearMap(userRows) {
+  const map = new Map()
+  for (const row of userRows) {
+    const sid = normalizeId(String(row.student_id || ''))
+    if (!sid) continue
+    const cyRaw = String(row.curriculum_year || '').trim()
+    if (!cyRaw) continue
+    const cy = parseInt(cyRaw, 10)
+    if (Number.isFinite(cy)) map.set(sid, cy)
+  }
+  return map
+}
 
 /**
  * GET /api/graduation
@@ -18,10 +37,11 @@ import { computeGraduationResults } from '@/lib/graduation'
  */
 export async function GET() {
   try {
-    const [studentRows, ruleRows, categoryFormulaRows] = await Promise.all([
+    const [studentRows, ruleRows, categoryFormulaRows, userRows] = await Promise.all([
       fetchStudentsSummaryAll(),
       fetchGraduationRuleAll(),
       fetchCategoryFormulaAll(),
+      fetchUsersAll(),
     ])
 
     if (studentRows.length === 0) {
@@ -33,7 +53,8 @@ export async function GET() {
 
     console.log('[GET /api/graduation] categoryFormulaRows:', categoryFormulaRows.length)
 
-    const results = computeGraduationResults(studentRows, ruleRows, categoryFormulaRows)
+    const curriculumYearMap = buildCurriculumYearMap(userRows)
+    const results = computeGraduationResults(studentRows, ruleRows, categoryFormulaRows, curriculumYearMap)
 
     return NextResponse.json({
       results,
@@ -70,10 +91,11 @@ export async function POST(request) {
     const body    = await request.json().catch(() => ({}))
     const dry_run = body?.dry_run === true
 
-    const [studentRows, ruleRows, categoryFormulaRows] = await Promise.all([
+    const [studentRows, ruleRows, categoryFormulaRows, userRows] = await Promise.all([
       fetchStudentsSummaryAll(),
       fetchGraduationRuleAll(),
       fetchCategoryFormulaAll(),
+      fetchUsersAll(),
     ])
 
     if (studentRows.length === 0) {
@@ -89,14 +111,17 @@ export async function POST(request) {
       )
     }
 
+    const curriculumYearMap = buildCurriculumYearMap(userRows)
+
     console.log('[POST /api/graduation] computing:', {
       students:        studentRows.length,
       rules:           ruleRows.length,
       categoryFormulas: categoryFormulaRows.length,
+      curriculumYears: curriculumYearMap.size,
       dry_run,
     })
 
-    const results = computeGraduationResults(studentRows, ruleRows, categoryFormulaRows)
+    const results = computeGraduationResults(studentRows, ruleRows, categoryFormulaRows, curriculumYearMap)
 
     if (!dry_run) {
       await writeGraduationResult(results)

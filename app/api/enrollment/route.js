@@ -65,11 +65,37 @@ export async function POST(request) {
       )
     }
 
-    // コースの保存学期を取得（学年・学期の履修可否チェックは行わない）
+    // コースの保存学期と academic_year を取得
     _step = 'fetchAllSheets'
-    const { courses: rawCourses } = await fetchAllSheets(studentId)
-    const course = rawCourses.map(normalizeCourse).find(c => c.class_id === classId)
+    const { courses: rawCourses, userCurriculumYear } = await fetchAllSheets(studentId)
+    const courses = rawCourses.map(normalizeCourse)
+    const course  = courses.find(c => c.class_id === classId)
     const storedSemester = course ? termToSemKey(course.term) : null
+    // academic_year: コースレコードが持つ開講年度（ない場合は null）
+    const academicYear = course?.academic_year ?? null
+
+    // ── academic_year バリデーション ──────────────────────────────────────────
+    // コースに academic_year が設定されている場合、学生の「学年 + 入学年度」と一致するか確認。
+    // 一致しない → 別年度の授業への誤登録を防ぐ。
+    // curriculum_year が未設定（null）の場合はチェックをスキップ（後方互換）。
+    if (academicYear != null && userCurriculumYear != null) {
+      // 学生のその学年での開講年度: curriculum_year + (grade - 1)
+      const expectedAcademicYear = userCurriculumYear + (studentGrade - 1)
+      if (academicYear !== expectedAcademicYear) {
+        console.warn('[POST /api/enrollment] academic_year mismatch:', {
+          classId, academicYear, expectedAcademicYear, studentGrade, userCurriculumYear,
+        })
+        return NextResponse.json(
+          {
+            error: `この授業（${academicYear}年度開講）は${studentGrade}年生として登録できません。`,
+            code:  'ACADEMIC_YEAR_MISMATCH',
+            academicYear,
+            expectedAcademicYear,
+          },
+          { status: 400 }
+        )
+      }
+    }
 
     _step = 'upsertEnrollment'
     const finalStatus = await upsertEnrollment({
@@ -78,6 +104,7 @@ export async function POST(request) {
       semester: storedSemester,
       status,
       studentId,
+      academic_year: academicYear,
     })
 
     return NextResponse.json({ classId, status: finalStatus })

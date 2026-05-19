@@ -47,6 +47,12 @@ function filterEligible(courses, grade, semester) {
   return courses.filter(c => isCourseEligible(c, grade, semester))
 }
 
+/** 開講年度でフィルタ（academicYear が null なら全件通す）。 */
+function filterByAcademicYear(courses, academicYear) {
+  if (academicYear == null) return courses
+  return courses.filter(c => c.academic_year == null || c.academic_year === academicYear)
+}
+
 /** コースがターム制かどうか */
 function isTermCourse(course) {
   return course.term in TERM_STR_TO_NUM
@@ -85,10 +91,10 @@ export default function AddCourseModal({
 
   // ── コース絞り込み ────────────────────────────────────────────────────────
 
-  /** 学年・学期・スロットで絞ったコース（登録可能候補のみ） */
+  /** 学年・学期・スロット・開講年度で絞ったコース（登録可能候補のみ） */
   const slotCourses = useMemo(
-    () => filterBySlot(filterEligible(courses, grade, semester), day, period),
-    [courses, grade, semester, day, period]
+    () => filterBySlot(filterByAcademicYear(filterEligible(courses, grade, semester), academicYear), day, period),
+    [courses, grade, semester, day, period, academicYear]
   )
 
   /**
@@ -251,7 +257,7 @@ export default function AddCourseModal({
             const isOdd    = isTerm && termNum % 2 === 1
 
             return (
-              <button key={c.class_id}
+              <button key={`${c.class_id}|${c.academic_year ?? ''}`}
                 onClick={() => setPreview(c)}
                 className="w-full text-left rounded-xl px-3 py-2.5 mb-1.5 border
                            bg-gray-50 dark:bg-[#252839] border-gray-100 dark:border-white/[0.07]

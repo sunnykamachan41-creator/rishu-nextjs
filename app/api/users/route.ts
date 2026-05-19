@@ -29,8 +29,8 @@ export async function GET() {
 
 /**
  * POST /api/users
- * ログイン中ユーザーの department_id を更新する。
- * Body: { department_id: string }
+ * ログイン中ユーザーの department_id と curriculum_year を更新する。
+ * Body: { department_id: string, curriculum_year?: number }
  *
  * パイプライン:
  *   1. upsertUserDepartment         — users シートを更新
@@ -46,16 +46,18 @@ export async function POST(req: Request) {
     const studentId = session.user.student_id
 
     const body = await req.json()
-    const { department_id } = body
+    const { department_id, curriculum_year } = body
 
     if (!department_id) {
       return NextResponse.json({ error: "department_id is required" }, { status: 400 })
     }
 
     const normalizedDept = normalizeId(department_id)
+    const cyNum = curriculum_year != null ? Number(curriculum_year) : null
+    const normalizedCY = (cyNum != null && Number.isFinite(cyNum)) ? cyNum : null
 
-    // 1. users シートに department_id を書き込む
-    await upsertUserDepartment(normalizedDept, studentId)
+    // 1. users シートに department_id と curriculum_year を書き込む
+    await upsertUserDepartment(normalizedDept, normalizedCY, studentId)
 
     // 2. students_summary / GRADUATION_RESULT の行を確保（fire-and-forget）
     //    enrollment 集計パイプラインの前提となる行を作るだけ。
@@ -71,9 +73,10 @@ export async function POST(req: Request) {
     })()
 
     return NextResponse.json({
-      ok:            true,
-      student_id:    studentId,
-      department_id: normalizedDept,
+      ok:              true,
+      student_id:      studentId,
+      department_id:   normalizedDept,
+      curriculum_year: normalizedCY,
     })
   } catch (err: any) {
     console.error("[POST /api/users]", err)

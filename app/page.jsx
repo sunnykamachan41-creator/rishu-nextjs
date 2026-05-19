@@ -1,5 +1,5 @@
 'use client'
-import { useState, useCallback, useMemo, useEffect } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import useSWR from 'swr'
 import { useSession, signIn } from 'next-auth/react'
 import TimetableV2 from '@/components/TimetableV2'
@@ -125,6 +125,25 @@ export default function Page() {
   const [tab, setTab] = useState('timetable')
   const [toggling, setToggling] = useState(null) // classId currently being toggled
   const [drawerOpen, setDrawerOpen] = useState(false)
+
+  // ── 左端スワイプでDrawerを開く ────────────────────────────────────────────
+  const edgeSwipeStartX = useRef(null)
+  const edgeSwipeStartY = useRef(null)
+  const handleEdgeTouchStart = useCallback((e) => {
+    const bodyLeft = document.body.getBoundingClientRect().left
+    if (e.touches[0].clientX - bodyLeft < 30) {
+      edgeSwipeStartX.current = e.touches[0].clientX
+      edgeSwipeStartY.current = e.touches[0].clientY
+    }
+  }, [])
+  const handleEdgeTouchEnd = useCallback((e) => {
+    if (edgeSwipeStartX.current === null) return
+    const dx = e.changedTouches[0].clientX - edgeSwipeStartX.current
+    const dy = Math.abs(e.changedTouches[0].clientY - (edgeSwipeStartY.current ?? 0))
+    if (dx > 60 && dy < 80 && !drawerOpen) setDrawerOpen(true)
+    edgeSwipeStartX.current = null
+    edgeSwipeStartY.current = null
+  }, [drawerOpen])
   // 学科変更キャンセル用：変更開始前の department_id を退避しておく
   const [prevDepartment, setPrevDepartment] = useState('')
   const [timetableTermFilter, setTimetableTermFilter] = useState('春学期')
@@ -146,7 +165,7 @@ export default function Page() {
    *
    * localStorage は使用しない（student_id ごとに混在するため）。
    */
-  const handleDepartmentSelect = useCallback(async (value) => {
+  const handleDepartmentSelect = useCallback(async (value, enrollmentYearOverride) => {
     // Empty value = "change department" action: reset to re-open OnboardingModal.
     if (!value) {
       setDepartment('')
@@ -157,7 +176,11 @@ export default function Page() {
       const res = await fetch('/api/users', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ department_id: value }),
+        body:    JSON.stringify({
+          department_id:   value,
+          // 入学年度（curriculum_year）: 初回オンボーディング時のみ送信
+          ...(enrollmentYearOverride ? { curriculum_year: enrollmentYearOverride } : {}),
+        }),
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
@@ -166,6 +189,19 @@ export default function Page() {
       }
       console.log('[handleDepartmentSelect] user department saved:', value)
       setDepartment(value)
+
+      // 初回オンボーディングで入学年度が選択された場合は保存する
+      if (enrollmentYearOverride) {
+        setEnrollmentYear(enrollmentYearOverride)
+        saveEnrollmentYear(enrollmentYearOverride)
+        // プロフィールAPIにも反映（エラーは無視して続行）
+        fetch('/api/profile', {
+          method:  'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ enrollment_year: enrollmentYearOverride }),
+        }).catch(() => {})
+      }
+
       mutate()   // SWR 再検証でサーバー側の userDepartment を同期
     } catch (err) {
       console.error('[handleDepartmentSelect] network error:', err)
@@ -305,12 +341,15 @@ export default function Page() {
     if (toggling) return
     setToggling(classId)
 
-    const course         = data?.courses?.find(c => c.class_id === classId)
+    // 年度コンテキストを考慮して正しい年度のコースを取得
+    const course         = data?.courses?.find(c => c.class_id === classId && (academicYear == null || c.academic_year === academicYear))
+                        ?? data?.courses?.find(c => c.class_id === classId)
     const courseId       = course?.course_id ?? null
     const courseSemester = course ? termToSemKey(course.term) : null
+    // composite key: class_id|academic_year
+    const ck = `${classId}|${course?.academic_year ?? ''}`
 
-    // 登録ガード（廃止）: 学年・学期チェックは警告なしで弾いていたため全廃。
-    const isAdding = !data?.selectedIds?.includes(classId)
+    const isAdding = !data?.selectedIds?.includes(ck)
 
     // ── 再履修・聴講チェック（新規追加時のみ）───────────────────────────────
     if (newStatus !== 'REMOVE' && isAdding && course) {
@@ -327,19 +366,19 @@ export default function Page() {
       if (!current) return current
       if (newStatus === 'REMOVE') {
         const newStatusMap = { ...current.statusMap }
-        delete newStatusMap[classId]
+        delete newStatusMap[ck]
         return {
           ...current,
-          selectedIds: current.selectedIds.filter(id => id !== classId),
+          selectedIds: current.selectedIds.filter(id => id !== ck),
           statusMap:   newStatusMap,
-          enrollment:  (current.enrollment ?? []).filter(e => e.class_id !== classId),
+          enrollment:  (current.enrollment ?? []).filter(e => !(e.class_id === classId && (course?.academic_year == null || e.academic_year === course.academic_year))),
         }
       }
-      const alreadyIn = current.selectedIds.includes(classId)
+      const alreadyIn = current.selectedIds.includes(ck)
       return {
         ...current,
-        selectedIds: alreadyIn ? current.selectedIds : [...current.selectedIds, classId],
-        statusMap:   { ...current.statusMap, [classId]: newStatus },
+        selectedIds: alreadyIn ? current.selectedIds : [...current.selectedIds, ck],
+        statusMap:   { ...current.statusMap, [ck]: newStatus },
         enrollment:  alreadyIn
           ? (current.enrollment ?? []).map(e =>
               e.class_id === classId ? { ...e, status: newStatus } : e
@@ -347,7 +386,8 @@ export default function Page() {
           : [
               ...(current.enrollment ?? []),
               { class_id: classId, course_id: courseId ?? classId,
-                year: selectedGrade, semester: courseSemester, status: newStatus },
+                year: selectedGrade, semester: courseSemester, status: newStatus,
+                academic_year: course?.academic_year ?? null },
             ],
       }
     }, { revalidate: false })
@@ -387,17 +427,19 @@ export default function Page() {
     if (toggling) return
     setToggling(classId)
 
-    const course         = data?.courses?.find(c => c.class_id === classId)
+    const course         = data?.courses?.find(c => c.class_id === classId && (academicYear == null || c.academic_year === academicYear))
+                        ?? data?.courses?.find(c => c.class_id === classId)
     const courseSemester = course ? termToSemKey(course.term) : null
+    const ck = `${classId}|${course?.academic_year ?? ''}`
 
     // Optimistic update
     mutate(current => {
       if (!current) return current
-      const alreadyIn = current.selectedIds.includes(classId)
+      const alreadyIn = current.selectedIds.includes(ck)
       return {
         ...current,
-        selectedIds: alreadyIn ? current.selectedIds : [...current.selectedIds, classId],
-        statusMap:   { ...current.statusMap, [classId]: status },
+        selectedIds: alreadyIn ? current.selectedIds : [...current.selectedIds, ck],
+        statusMap:   { ...current.statusMap, [ck]: status },
         enrollment: alreadyIn
           ? (current.enrollment ?? []).map(e =>
               e.class_id === classId ? { ...e, status } : e
@@ -405,7 +447,8 @@ export default function Page() {
           : [
               ...(current.enrollment ?? []),
               { class_id: classId, course_id: courseId ?? classId,
-                year: selectedGrade, semester: courseSemester, status },
+                year: selectedGrade, semester: courseSemester, status,
+                academic_year: course?.academic_year ?? null },
             ],
       }
     }, { revalidate: false })
@@ -434,22 +477,19 @@ export default function Page() {
     if (toggling) return
     setToggling(classId)
 
-    const course   = data?.courses?.find(c => c.class_id === classId)
+    const course   = data?.courses?.find(c => c.class_id === classId && (academicYear == null || c.academic_year === academicYear))
+                  ?? data?.courses?.find(c => c.class_id === classId)
     const courseId = course?.course_id ?? null
+    const ck = `${classId}|${course?.academic_year ?? ''}`
 
     // 学期は副作用なしで先に計算（ガード判定・学期フィルタ更新に使用）
-    // termToSemKey は lib/eligibility の共通関数
     const courseSemester = course ? termToSemKey(course.term) : null
 
-    // isAdding は現在の selectedIds から判定（SWR キャッシュと同期）
-    const isAdding = !data?.selectedIds?.includes(classId)
+    // isAdding は composite key で判定（異年度の同 class_id を区別）
+    const isAdding = !data?.selectedIds?.includes(ck)
     const status   = isAdding ? 'PLANNED' : 'REMOVE'
 
-    // 登録ガード（廃止）: 学年・学期チェックは警告なしで弾いていたため全廃。
-    // サーバー側も同様にガードを削除済み。
-
     // ── 再履修・聴講チェック（追加時のみ）────────────────────────────────────
-    // 同一 course_id に COMPLETED / FAILED 履歴があれば ReEnrollModal を開く
     if (isAdding && course) {
       const enrollment = data?.enrollment ?? []
       if (shouldShowReEnrollModal(course.course_id, enrollment)) {
@@ -469,24 +509,25 @@ export default function Page() {
     mutate(current => {
       if (!current) return current
       if (isAdding) {
-        const newStatusMap = { ...current.statusMap, [classId]: 'PLANNED' }
+        const newStatusMap = { ...current.statusMap, [ck]: 'PLANNED' }
         return {
           ...current,
-          selectedIds: [...current.selectedIds, classId],
+          selectedIds: [...current.selectedIds, ck],
           statusMap:   newStatusMap,
           enrollment:  [...(current.enrollment ?? []), {
             class_id: classId, course_id: courseId ?? classId,
             year: selectedGrade, semester: courseSemester, status: 'PLANNED',
+            academic_year: course?.academic_year ?? null,
           }],
         }
       }
       const newStatusMap = { ...current.statusMap }
-      delete newStatusMap[classId]
+      delete newStatusMap[ck]
       return {
         ...current,
-        selectedIds: current.selectedIds.filter(id => id !== classId),
+        selectedIds: current.selectedIds.filter(id => id !== ck),
         statusMap:   newStatusMap,
-        enrollment:  (current.enrollment ?? []).filter(e => e.class_id !== classId),
+        enrollment:  (current.enrollment ?? []).filter(e => !(e.class_id === classId && (course?.academic_year == null || e.academic_year === course.academic_year))),
       }
     }, { revalidate: false })
 
@@ -670,7 +711,10 @@ export default function Page() {
   // ── Main layout ────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-col" style={{ height: '100dvh' }}>
+    <div className="flex flex-col" style={{ height: '100dvh' }}
+      onTouchStart={handleEdgeTouchStart}
+      onTouchEnd={handleEdgeTouchEnd}
+    >
       {/* ── プロフィールDrawer ─────────────────────────────────────────── */}
       <ProfileDrawer
         isOpen={drawerOpen}
@@ -699,20 +743,11 @@ export default function Page() {
           )}
         </button>
 
-        {/* 中央：タブ別コンテキスト */}
+        {/* 中央：タブ名 */}
         <div className="flex-1 text-center px-2">
-          {tab === 'timetable' ? (
-            <div className="flex items-center justify-center gap-1.5">
-              <span className="text-sm font-bold text-gray-800 dark:text-slate-100">{selectedGrade}年生</span>
-              {departmentLabel && (
-                <span className="text-xs text-gray-400 dark:text-slate-400 font-medium truncate max-w-[160px]">{departmentLabel}</span>
-              )}
-            </div>
-          ) : (
-            <span className="text-sm font-bold text-gray-800 dark:text-slate-100">
-              {TABS.find(t => t.id === tab)?.label ?? ''}
-            </span>
-          )}
+          <span className="text-sm font-bold text-gray-800 dark:text-slate-100">
+            {TABS.find(t => t.id === tab)?.label ?? ''}
+          </span>
         </div>
 
         {/* 右側スペーサー（左右対称） */}
@@ -787,6 +822,7 @@ export default function Page() {
                 onStatusChange={handleStatusChange}
                 selectedGrade={selectedGrade}
                 semesterFilter={timetableTermFilter}
+                academicYear={academicYear}
               />
             </div>
             {/* 単位認定モーダル */}

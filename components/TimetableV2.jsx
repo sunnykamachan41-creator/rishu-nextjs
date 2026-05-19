@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { loadEntries, createEntry, deleteEntry, clearEntries } from '@/lib/enrollmentStore'
 import {
   getDefaultPeriodConfig,
@@ -21,8 +21,10 @@ const DAY_LBL = { MON: '月', TUE: '火', WED: '水', THU: '木', FRI: '金' }
 /** 学期 → [前半ターム（奇数）, 後半ターム（偶数）] */
 const TERM_PAIR = { spring: [1, 2], fall: [3, 4] }
 
-const CELL_H = 100  // 1コマのセル高さ (px)
+const CELL_H = 100  // 1コマのセル高さ (px) — tall モード用フォールバック
 const HALF_H = 48   // 分割時の片側高さ (px)
+
+const CELL_STYLE_KEY = 'rishu_cell_style'  // 'tall' | 'square'
 
 const TERM_TO_NUM = { '第1ターム': 1, '第2ターム': 2, '第3ターム': 3, '第4ターム': 4 }
 
@@ -85,27 +87,25 @@ function deriveCatalogEntries(
   // 新スキーマ: この学年・学期の履修科目のみ対象にする
   let activeSet
   if (enrollmentVersion === 'new' && enrollment?.length) {
-    // year フィールドは学年（1〜4）として扱う
-    // null year は「学年未設定」扱いで全学年に表示（フォールバック）
+    // composite key: class_id|academic_year — prevents cross-year display leakage
     activeSet = new Set(
       enrollment
         .filter(e =>
           (e.year === grade || e.year === null) &&
           (e.semester === semester || e.semester === null)
         )
-        // class_id のみ。course_id を含めると同一科目の全セクションが表示されてしまう
-        .map(e => e.class_id)
+        .map(e => `${e.class_id}|${e.academic_year ?? ''}`)
     )
   } else {
-    // レガシー: selectedIds を全部使う
+    // レガシー: selectedIds はすでに composite key 形式
     activeSet = new Set(selectedIds)
   }
 
   const result = []
 
   for (const c of courses) {
-    // class_id のみでマッチ（course_id チェックは不要: 全セクションが表示されてしまう）
-    if (!activeSet.has(c.class_id)) continue
+    // composite key でマッチ（年度を含めることで異年度の同 class_id を区別）
+    if (!activeSet.has(`${c.class_id}|${c.academic_year ?? ''}`)) continue
     if (!semesterTerms.includes(c.term)) continue
 
     const nt = c.normalized_time
@@ -117,14 +117,15 @@ function deriveCatalogEntries(
       const m = slot.trim().match(/^(MON|TUE|WED|THU|FRI)_(\d)$/)
       if (!m) continue
       result.push({
-        id:          `cat_${c.class_id}_${m[1]}_${m[2]}`,
-        day:         m[1],
-        period:      parseInt(m[2], 10),
-        term:        termNum,
-        courseTitle: c.course_name,
-        classId:     c.class_id,
-        room:        c.room || null,
-        _catalog:    true,   // 区別フラグ（削除時の挙動分岐用）
+        id:           `cat_${c.class_id}_${m[1]}_${m[2]}`,
+        day:          m[1],
+        period:       parseInt(m[2], 10),
+        term:         termNum,
+        courseTitle:  c.course_name,
+        classId:      c.class_id,
+        academicYear: c.academic_year,   // 削除時の composite key 構築用
+        room:         c.room || null,
+        _catalog:     true,   // 区別フラグ（削除時の挙動分岐用）
       })
     }
   }
@@ -197,58 +198,132 @@ function CourseDetailModal({ entry, onRemove, onClose }) {
 
 // ── CourseBlock（授業ブロック表示） ───────────────────────────────────────────
 
-function CourseBlock({ entry, height, onClick, selectable = false, selected = false }) {
-  const c        = termColor(entry.term)
-  const maxLines = height >= 80 ? 3 : 2
+/**
+ * cellH      : 計算済みセル高さ（px）— フォントサイズ・行数の判定に使用
+ * isHalf     : ターム分割セルの片側（上下半分）に配置する場合 true
+ * isTallStyle: true = 縦長モード（旧デザイン: 完全ボックス・丸ピル・左ストリップなし）
+ *              false = 均等モード（現デザイン: 左カラーストリップ）
+ */
+function CourseBlock({ entry, cellH = 72, isHalf = false, isTallStyle = false, onClick, selectable = false, selected = false }) {
+  const c = termColor(entry.term)
+  const effectiveH = isHalf ? Math.floor(cellH / 2) : cellH
+  const maxLines   = effectiveH >= 72 ? 3 : 2
+
+  // ── 縦長モード（旧デザイン完全再現） ────────────────────────────────────────
+  if (isTallStyle) {
+    return (
+      <div className="h-full p-0.5 cursor-pointer relative" onClick={onClick}>
+        <div className={`h-full rounded-lg ${c.bg} border-2 transition-all
+                         overflow-hidden flex flex-col px-1.5 pt-1 pb-1.5
+                         active:opacity-80
+                         ${selectable && selected
+                             ? 'border-indigo-500 ring-1 ring-indigo-400'
+                             : selectable
+                               ? `${c.bd} opacity-70`
+                               : c.bd}`}>
+          {/* 選択チェックバッジ */}
+          {selectable && (
+            <div className={`absolute top-1.5 right-1.5 w-4 h-4 rounded-full border-2 flex items-center justify-center z-10
+                             ${selected ? 'bg-indigo-500 border-indigo-500' : 'bg-white dark:bg-[#252839] border-gray-300 dark:border-white/20'}`}>
+              {selected && (
+                <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </div>
+          )}
+          {/* 授業名（中央揃え） */}
+          <div className="flex-1 flex items-start justify-center min-w-0">
+            <span
+              className={`font-bold ${c.name} leading-tight text-center`}
+              style={{
+                fontSize: 9,
+                overflow: 'hidden',
+                display: '-webkit-box',
+                WebkitLineClamp: maxLines,
+                WebkitBoxOrient: 'vertical',
+              }}
+            >
+              {entry.courseTitle}
+            </span>
+          </div>
+          {/* 教室名（丸ピル・中央揃え・下端） */}
+          {entry.room && (
+            <div className="flex justify-center mt-auto pt-0.5">
+              <span
+                className={`${c.pill} text-white rounded-full font-semibold px-2 leading-tight
+                             max-w-full truncate`}
+                style={{ fontSize: 7.5, paddingTop: 2, paddingBottom: 2 }}
+              >
+                {entry.room}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // ── 均等モード（現デザイン: 左カラーストリップ） ────────────────────────────
+  const isIndigo = entry.term == null
+  const isOdd    = entry.term != null && entry.term % 2 === 1
+  const strip    = isIndigo ? 'bg-indigo-400' : isOdd ? 'bg-blue-500' : 'bg-violet-500'
+  const cardBg   = isIndigo ? 'bg-indigo-50 dark:bg-indigo-500/[0.12]'
+                 : isOdd    ? 'bg-blue-50 dark:bg-blue-500/[0.12]'
+                 :             'bg-violet-50 dark:bg-violet-500/[0.12]'
+  const titleCl  = isIndigo ? 'text-indigo-800 dark:text-indigo-200'
+                 : isOdd    ? 'text-blue-800 dark:text-blue-200'
+                 :             'text-violet-800 dark:text-violet-200'
+  const fz    = effectiveH >= 80 ? 10.5 : effectiveH >= 62 ? 9.5 : 9
+  const lines = effectiveH >= 72 ? 3 : 2
 
   return (
-    <div className="p-0.5 cursor-pointer relative" style={{ height }} onClick={onClick}>
-      <div className={`h-full rounded-lg ${c.bg} border-2 transition-all
-                       overflow-hidden flex flex-col px-1.5 pt-1 pb-1.5
-                       active:opacity-80
-                       ${selectable && selected
-                           ? 'border-indigo-500 ring-1 ring-indigo-400'
-                           : selectable
-                             ? `${c.bd} opacity-70`
-                             : `${c.bd}`}`}>
-        {/* 選択チェックバッジ */}
-        {selectable && (
-          <div className={`absolute top-1.5 right-1.5 w-4 h-4 rounded-full border-2 flex items-center justify-center z-10
-                           ${selected
-                               ? 'bg-indigo-500 border-indigo-500'
-                               : 'bg-white dark:bg-[#252839] border-gray-300 dark:border-white/20'}`}>
-            {selected && (
-              <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-              </svg>
-            )}
-          </div>
-        )}
-        <div className="flex-1 flex items-start justify-center min-w-0">
+    <div className="h-full p-px relative cursor-pointer" onClick={onClick}>
+      {/* 一括選択バッジ */}
+      {selectable && (
+        <div className={`absolute top-1 right-1 z-10 w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center
+                         ${selected ? 'bg-indigo-500 border-indigo-500' : 'bg-white dark:bg-[#1f2235] border-gray-300 dark:border-white/20'}`}>
+          {selected && (
+            <svg className="w-2 h-2 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+            </svg>
+          )}
+        </div>
+      )}
+      {/* カード */}
+      <div className={`h-full rounded-[5px] overflow-hidden flex flex-row
+                       active:opacity-60 transition-opacity
+                       ${cardBg}
+                       ${selectable && selected ? 'ring-1 ring-inset ring-indigo-400' : ''}
+                       ${selectable && !selected ? 'opacity-50' : ''}`}>
+        {/* ターム識別ストリップ（左 3px） */}
+        <div className={`w-[3px] flex-shrink-0 ${strip}`} />
+        {/* テキストエリア */}
+        <div className="flex-1 min-w-0 flex flex-col justify-center py-0.5 px-1 overflow-hidden">
           <span
-            className={`font-bold ${c.name} leading-tight text-center`}
+            className={`font-bold leading-tight ${titleCl}`}
             style={{
-              fontSize: 9,
+              fontSize: fz,
               overflow: 'hidden',
               display: '-webkit-box',
-              WebkitLineClamp: maxLines,
+              WebkitLineClamp: lines,
               WebkitBoxOrient: 'vertical',
             }}
           >
             {entry.courseTitle}
           </span>
-        </div>
-        {entry.room && (
-          <div className="flex justify-center mt-auto pt-0.5">
+          {entry.room && effectiveH >= 52 && (
             <span
-              className={`${c.pill} text-white rounded-full font-semibold px-2 leading-tight
-                           max-w-full truncate`}
-              style={{ fontSize: 7.5, paddingTop: 2, paddingBottom: 2 }}
+              className={`mt-px font-bold truncate rounded-[3px] px-1 leading-none flex-shrink-0
+                          ${isIndigo ? 'bg-indigo-400 text-white'
+                          : isOdd   ? 'bg-blue-400 text-white'
+                          :            'bg-violet-400 text-white'}`}
+              style={{ fontSize: 7, paddingTop: 2, paddingBottom: 2, maxWidth: '100%' }}
             >
               {entry.room}
             </span>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   )
@@ -331,6 +406,9 @@ export default function TimetableV2({
   const [confirmDelGrade, setConfirmDelGrade] = useState(false)
   const [detailExtra,     setDetailExtra]     = useState(null)
   const [extraAddOpen,    setExtraAddOpen]    = useState(false)
+  // 年度ミスマッチ警告トースト
+  const [yearWarnVisible, setYearWarnVisible] = useState(false)
+  const yearWarnTimer = useRef(null)
   // [DEV] 手動再計算
   const [recalcBusy, setRecalcBusy] = useState(false)
   const [recalcDone, setRecalcDone] = useState(false)
@@ -346,10 +424,10 @@ export default function TimetableV2({
 
   const handleAdd = useCallback((data) => {
     if (data.classId) {
-      // カタログ授業 → 履修登録 API を更新（まだ未登録の場合のみ）
-      // class_id のみで重複チェック（course_id を混入させると同一科目の全セクションが
-      // "登録済み" と誤判定され、新規登録がスキップされてしまう）
-      const alreadySelected = selectedIds?.includes(data.classId)
+      // composite key で重複チェック（異年度の同 class_id を区別）
+      const addedCourse = courses?.find(c => c.class_id === data.classId && (academicYear == null || c.academic_year === academicYear))
+      const ck = `${data.classId}|${addedCourse?.academic_year ?? ''}`
+      const alreadySelected = selectedIds?.includes(ck)
       if (onToggleEnrollment && !alreadySelected) {
         onToggleEnrollment(data.classId)
       }
@@ -366,8 +444,9 @@ export default function TimetableV2({
     // カタログ授業（_catalog フラグあり）
     const catEntry = catalogEntries.find(e => e.id === id)
     if (catEntry?.classId) {
-      // 履修解除 → API を通じて selectedIds から削除 → catalogEntries 自動更新
-      if (onToggleEnrollment && selectedIds?.includes(catEntry.classId)) {
+      // composite key で登録確認（異年度の同 class_id を区別）
+      const ck = `${catEntry.classId}|${catEntry.academicYear ?? ''}`
+      if (onToggleEnrollment && selectedIds?.includes(ck)) {
         onToggleEnrollment(catEntry.classId)
       }
       return
@@ -386,26 +465,72 @@ export default function TimetableV2({
       const t = c.normalized_time
       return (!t || t === 'EXTRA' || t === '0') &&
              semesterTerms.includes(c.term) &&
-             selectedIds.includes(c.class_id)
+             selectedIds.includes(`${c.class_id}|${c.academic_year ?? ''}`)
     })
   }, [courses, selectedIds, semesterTerms])
 
   const [extraOpen, setExtraOpen] = useState(false)
 
+  // ── 通常授業の集計（学期グリッドに表示中の科目） ───────────────────────────
+  const regularCourseSummary = useMemo(() => {
+    const uniqueIds = new Set(catalogEntries.map(e => e.classId).filter(Boolean))
+    const count   = uniqueIds.size + new Set(manualEntries.map(e => e.courseTitle)).size
+    const credits = [...uniqueIds].reduce((sum, id) => {
+      const c = courses?.find(c => c.class_id === id)
+      return sum + (Number(c?.credits) || 0)
+    }, 0)
+    return { count, credits }
+  }, [catalogEntries, manualEntries, courses])
+
+  // ── セルスタイル（'tall' = 縦長固定・スクロール / 'square' = 均等・スクロールなし） ──
+  const [cellStyle, setCellStyle] = useState(() => {
+    if (typeof window === 'undefined') return 'square'
+    return localStorage.getItem(CELL_STYLE_KEY) ?? 'square'
+  })
+  const handleCellStyleChange = useCallback((value) => {
+    setCellStyle(value)
+    try { localStorage.setItem(CELL_STYLE_KEY, value) } catch {}
+  }, [])
+
+  // ── セル高さを動的計算（均等・スクロールなし） ─────────────────────────────
+  const rowsRef = useRef(null)
+  const [cellH, setCellH] = useState(72)
+  useEffect(() => {
+    const el = rowsRef.current
+    if (!el) return
+    // 縦長・均等ともに ResizeObserver でセル高さを計算（スクロールなし）
+    const compute = () => {
+      const h = Math.max(48, Math.floor(el.offsetHeight / periodConfig.length))
+      setCellH(h)
+    }
+    compute()
+    const ro = new ResizeObserver(compute)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [periodConfig.length, cellStyle])
+
   const handleAddExtra = useCallback((classId) => {
-    if (classId && onToggleEnrollment && !selectedIds?.includes(classId)) {
-      onToggleEnrollment(classId)
-      onEntriesChange?.()
+    if (classId && onToggleEnrollment) {
+      const course = courses?.find(c => c.class_id === classId && (academicYear == null || c.academic_year === academicYear))
+      const ck = `${classId}|${course?.academic_year ?? ''}`
+      if (!selectedIds?.includes(ck)) {
+        onToggleEnrollment(classId)
+        onEntriesChange?.()
+      }
     }
     setExtraAddOpen(false)
-  }, [onToggleEnrollment, selectedIds, onEntriesChange])
+  }, [courses, academicYear, onToggleEnrollment, selectedIds, onEntriesChange])
 
   const handleRemoveExtra = useCallback((classId) => {
-    if (classId && onToggleEnrollment && selectedIds?.includes(classId)) {
-      onToggleEnrollment(classId)
-      onEntriesChange?.()
+    if (classId && onToggleEnrollment) {
+      const course = courses?.find(c => c.class_id === classId && (academicYear == null || c.academic_year === academicYear))
+      const ck = `${classId}|${course?.academic_year ?? ''}`
+      if (selectedIds?.includes(ck)) {
+        onToggleEnrollment(classId)
+        onEntriesChange?.()
+      }
     }
-  }, [onToggleEnrollment, selectedIds, onEntriesChange])
+  }, [courses, academicYear, onToggleEnrollment, selectedIds, onEntriesChange])
 
   /**
    * エントリクリック時の振り分け:
@@ -423,9 +548,23 @@ export default function TimetableV2({
     setDetailEntry(entry)
   }, [enrollmentVersion, courses])
 
+  // 年度チェック付きモーダル開閉
+  // academic_year が設定された授業が存在し、かつ現在の academicYear と一致するものが
+  // ひとつもない場合は選択画面を開かずに警告トーストを表示する。
   const openModal = useCallback((day, period, lockedTerm) => {
+    if (academicYear != null) {
+      const coursesWithAY = (courses ?? []).filter(c => c.academic_year != null)
+      const hasMatch = coursesWithAY.some(c => c.academic_year === academicYear)
+      if (coursesWithAY.length > 0 && !hasMatch) {
+        // 年度ミスマッチ → 警告トーストを表示してモーダルを開かない
+        setYearWarnVisible(true)
+        if (yearWarnTimer.current) clearTimeout(yearWarnTimer.current)
+        yearWarnTimer.current = setTimeout(() => setYearWarnVisible(false), 3500)
+        return
+      }
+    }
     setAddModal({ day, period, lockedTerm })
-  }, [])
+  }, [academicYear, courses])
 
   // 一括ステータス変更ハンドラ
   const handleBulkToggle = useCallback((classId) => {
@@ -685,153 +824,196 @@ export default function TimetableV2({
         </div>
       </div>
 
-      {/* ── グリッド ──────────────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-auto p-2">
-        <div className="bg-white dark:bg-[#1a1d27] rounded-2xl overflow-hidden shadow-sm dark:shadow-none">
+      {/* ── 年度ミスマッチ警告トースト ──────────────────────────────────────── */}
+      {yearWarnVisible && (
+        <div className="mx-2 mb-1 flex-shrink-0">
+          <div className="flex items-start gap-2.5 bg-amber-50 dark:bg-amber-500/10
+                          border border-amber-200 dark:border-amber-500/30
+                          rounded-xl px-3.5 py-2.5">
+            <svg className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 leading-snug">
+                {academicYear}年度の授業がありません
+              </p>
+              <p className="text-[11px] text-amber-600 dark:text-amber-500 mt-0.5 leading-snug">
+                現在の学年・入学年度設定では、この年度に開講された授業を登録できません。
+              </p>
+            </div>
+            <button onClick={() => setYearWarnVisible(false)}
+              className="text-amber-400 dark:text-amber-500 flex-shrink-0 mt-0.5">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
 
-          {/* ヘッダー行 */}
-          <div className="grid border-b border-gray-100 dark:border-white/[0.07]"
-            style={{ gridTemplateColumns: '44px repeat(5, 1fr)' }}>
-            <div className="py-2" />
+      {/* ── グリッド（ResizeObserver で均等セル高さを保証） ──────────────────── */}
+      <div className="flex-1 min-h-0 px-2 pt-2 pb-1">
+        <div className="h-full bg-white dark:bg-[#1a1d27] rounded-2xl overflow-hidden shadow-sm dark:shadow-none flex flex-col">
+
+          {/* ── 曜日ヘッダー行 ───────────────────────────────────────────────── */}
+          <div className="flex flex-shrink-0 border-b border-gray-100 dark:border-white/[0.06]">
+            {/* コマ列ヘッダー（時刻列と幅を合わせる） */}
+            <div className="w-10 flex-shrink-0 bg-gray-50 dark:bg-white/[0.025] rounded-tl-2xl" />
             {DAYS.map(d => (
-              <div key={d} className="py-2 text-center text-xs font-semibold text-gray-600 dark:text-slate-400">
+              <div key={d} className="flex-1 py-1.5 text-center text-[11px] font-bold text-gray-500 dark:text-slate-400">
                 {DAY_LBL[d]}
               </div>
             ))}
           </div>
 
-          {/* コマ行 */}
-          {periodConfig.map(({ period, start, end }) => (
-            <div key={period}
-              className="grid border-b border-gray-50 dark:border-white/[0.05] last:border-0"
-              style={{ gridTemplateColumns: '44px repeat(5, 1fr)', height: CELL_H }}>
+          {/* ── コマ行コンテナ（ResizeObserver でサイズを測定・両モードともスクロールなし） */}
+          <div ref={rowsRef}
+            className="flex-1 min-h-0 overflow-hidden">
+            {periodConfig.map(({ period, start, end }) => (
+              <div key={period}
+                className="flex border-b border-gray-50 dark:border-white/[0.04] last:border-0"
+                style={{ height: cellH }}>
 
-              {/* 時刻 + コマ番号 */}
-              <div className="flex flex-col items-center justify-between py-1.5 px-0.5 select-none">
-                <span className="font-medium text-gray-300 dark:text-slate-600 leading-none" style={{ fontSize: 9 }}>
-                  {start}
-                </span>
-                <span className="text-xs font-bold text-gray-400 dark:text-slate-500">{period}</span>
-                <span className="font-medium text-gray-300 dark:text-slate-600 leading-none" style={{ fontSize: 9 }}>
-                  {end}
-                </span>
+                {/* 時刻 + コマ番号（左列） */}
+                <div className="w-10 flex-shrink-0 flex flex-col items-center justify-center gap-px select-none
+                                bg-gray-50 dark:bg-white/[0.025]
+                                border-r border-gray-100 dark:border-white/[0.06]">
+                  <span className="leading-none tabular-nums text-gray-300 dark:text-slate-700" style={{ fontSize: 7 }}>
+                    {start}
+                  </span>
+                  <span className="font-black text-gray-300 dark:text-slate-600 leading-none" style={{ fontSize: 13 }}>
+                    {period}
+                  </span>
+                  <span className="leading-none tabular-nums text-gray-300 dark:text-slate-700" style={{ fontSize: 7 }}>
+                    {end}
+                  </span>
+                </div>
+
+                {/* ── 曜日セル ──────────────────────────────────────────────── */}
+                {DAYS.map(d => {
+                  const cell = entries.filter(e => e.day === d && e.period === period)
+
+                  const halfEntry  = cell.find(e => e.term == null)  ?? null
+                  const upperEntry = cell.find(e => e.term === oddT) ?? null
+                  const lowerEntry = cell.find(e => e.term === evnT) ?? null
+                  const isSplit    = upperEntry != null || lowerEntry != null
+
+                  return (
+                    <div key={d}
+                      className="flex-1 border-l border-gray-50 dark:border-white/[0.04] overflow-hidden">
+
+                      {/* CASE 1: 通常授業（セル全体） */}
+                      {halfEntry && (
+                        <CourseBlock
+                          entry={halfEntry}
+                          cellH={cellH}
+                          isTallStyle={cellStyle === 'tall'}
+                          onClick={() =>
+                            bulkSelectMode && halfEntry.classId && halfEntry._catalog
+                              ? handleBulkToggle(halfEntry.classId)
+                              : handleEntryClick(halfEntry)
+                          }
+                          selectable={bulkSelectMode && !!halfEntry.classId && halfEntry._catalog}
+                          selected={bulkSelected.has(halfEntry.classId)}
+                        />
+                      )}
+
+                      {/* CASE 2: ターム分割（上下半分） */}
+                      {!halfEntry && isSplit && (
+                        <div className="h-full flex flex-col">
+
+                          {/* 上半分 */}
+                          <div className="flex-1 min-h-0 overflow-hidden">
+                            {upperEntry ? (
+                              <CourseBlock
+                                entry={upperEntry}
+                                cellH={cellH}
+                                isHalf
+                                isTallStyle={cellStyle === 'tall'}
+                                onClick={() =>
+                                  bulkSelectMode && upperEntry.classId && upperEntry._catalog
+                                    ? handleBulkToggle(upperEntry.classId)
+                                    : handleEntryClick(upperEntry)
+                                }
+                                selectable={bulkSelectMode && !!upperEntry.classId && upperEntry._catalog}
+                                selected={bulkSelected.has(upperEntry.classId)}
+                              />
+                            ) : (
+                              <div
+                                className="h-full flex items-center justify-center cursor-pointer
+                                           hover:bg-blue-50/60 dark:hover:bg-blue-500/5 transition-colors"
+                                onClick={() => openModal(d, period, oddT)}
+                              >
+                                <span className="text-blue-200 dark:text-blue-500/30 select-none" style={{ fontSize: 11 }}>+</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* 仕切り線 */}
+                          <div className="h-px flex-shrink-0 bg-gray-100 dark:bg-white/[0.05]" />
+
+                          {/* 下半分 */}
+                          <div className="flex-1 min-h-0 overflow-hidden">
+                            {lowerEntry ? (
+                              <CourseBlock
+                                entry={lowerEntry}
+                                cellH={cellH}
+                                isHalf
+                                isTallStyle={cellStyle === 'tall'}
+                                onClick={() =>
+                                  bulkSelectMode && lowerEntry.classId && lowerEntry._catalog
+                                    ? handleBulkToggle(lowerEntry.classId)
+                                    : handleEntryClick(lowerEntry)
+                                }
+                                selectable={bulkSelectMode && !!lowerEntry.classId && lowerEntry._catalog}
+                                selected={bulkSelected.has(lowerEntry.classId)}
+                              />
+                            ) : (
+                              <div
+                                className="h-full flex items-center justify-center cursor-pointer
+                                           hover:bg-violet-50/60 dark:hover:bg-violet-500/5 transition-colors"
+                                onClick={() => openModal(d, period, evnT)}
+                              >
+                                <span className="text-violet-200 dark:text-violet-500/30 select-none" style={{ fontSize: 11 }}>+</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* CASE 3: 空セル */}
+                      {!halfEntry && !isSplit && (
+                        <div
+                          className="h-full flex items-center justify-center cursor-pointer
+                                     hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors"
+                          onClick={() => openModal(d, period, null)}
+                        >
+                          <span className="text-gray-200 dark:text-white/[0.07] select-none font-light"
+                            style={{ fontSize: 18 }}>
+                            +
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
-
-              {/* ── 曜日セル ──────────────────────────────────────────────────── */}
-              {DAYS.map(d => {
-                const cell = entries.filter(e => e.day === d && e.period === period)
-
-                const halfEntry  = cell.find(e => e.term == null)  ?? null
-                const upperEntry = cell.find(e => e.term === oddT) ?? null
-                const lowerEntry = cell.find(e => e.term === evnT) ?? null
-                const isSplit    = upperEntry != null || lowerEntry != null
-
-                return (
-                  <div key={d}
-                    className="border-l border-gray-50 dark:border-white/[0.05] overflow-hidden"
-                    style={{ height: CELL_H }}>
-
-                    {/* CASE 1: 通常授業（セル全体） */}
-                    {halfEntry && (
-                      <CourseBlock
-                        entry={halfEntry}
-                        height={CELL_H}
-                        onClick={() =>
-                          bulkSelectMode && halfEntry.classId && halfEntry._catalog
-                            ? handleBulkToggle(halfEntry.classId)
-                            : handleEntryClick(halfEntry)
-                        }
-                        selectable={bulkSelectMode && !!halfEntry.classId && halfEntry._catalog}
-                        selected={bulkSelected.has(halfEntry.classId)}
-                      />
-                    )}
-
-                    {/* CASE 2: ターム分割 */}
-                    {!halfEntry && isSplit && (
-                      <div className="flex flex-col" style={{ height: CELL_H }}>
-
-                        {upperEntry ? (
-                          <CourseBlock
-                            entry={upperEntry}
-                            height={HALF_H}
-                            onClick={() =>
-                              bulkSelectMode && upperEntry.classId && upperEntry._catalog
-                                ? handleBulkToggle(upperEntry.classId)
-                                : handleEntryClick(upperEntry)
-                            }
-                            selectable={bulkSelectMode && !!upperEntry.classId && upperEntry._catalog}
-                            selected={bulkSelected.has(upperEntry.classId)}
-                          />
-                        ) : (
-                          <div
-                            className="flex items-center justify-center cursor-pointer
-                                       hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors select-none"
-                            style={{ height: HALF_H }}
-                            onClick={() => openModal(d, period, oddT)}
-                          >
-                            <span className="font-semibold text-blue-200 dark:text-blue-500/50" style={{ fontSize: 9 }}>
-                              第{oddT}T +
-                            </span>
-                          </div>
-                        )}
-
-                        <div className="h-0.5 bg-gray-100 dark:bg-white/[0.05] flex-shrink-0" />
-
-                        {lowerEntry ? (
-                          <CourseBlock
-                            entry={lowerEntry}
-                            height={HALF_H}
-                            onClick={() =>
-                              bulkSelectMode && lowerEntry.classId && lowerEntry._catalog
-                                ? handleBulkToggle(lowerEntry.classId)
-                                : handleEntryClick(lowerEntry)
-                            }
-                            selectable={bulkSelectMode && !!lowerEntry.classId && lowerEntry._catalog}
-                            selected={bulkSelected.has(lowerEntry.classId)}
-                          />
-                        ) : (
-                          <div
-                            className="flex items-center justify-center cursor-pointer
-                                       hover:bg-violet-50 dark:hover:bg-violet-500/10 transition-colors select-none"
-                            style={{ height: HALF_H }}
-                            onClick={() => openModal(d, period, evnT)}
-                          >
-                            <span className="font-semibold text-violet-200 dark:text-violet-500/50" style={{ fontSize: 9 }}>
-                              第{evnT}T +
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* CASE 3: 空セル */}
-                    {!halfEntry && !isSplit && (
-                      <div
-                        className="h-full flex items-center justify-center
-                                   cursor-pointer hover:bg-gray-50 dark:hover:bg-[#252839] transition-colors"
-                        onClick={() => openModal(d, period, null)}
-                      >
-                        <span className="text-gray-200 dark:text-white/10 font-light select-none"
-                          style={{ fontSize: 20 }}>
-                          +
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
+      </div>
 
-        {entries.length === 0 && (
-          <p className="mt-4 text-center text-xs text-gray-200 dark:text-white/20 select-none">
-            セルをタップして授業を追加、または「履修登録」タブから選択してください
-          </p>
-        )}
+      {/* ── 通常授業 集計ライン ──────────────────────────────────────────────── */}
+      <div className="flex-shrink-0 bg-gray-50 dark:bg-[#111318] border-t border-gray-100 dark:border-white/[0.05] px-4 py-1.5">
+        <span className="text-[11px] text-gray-400 dark:text-slate-500 font-medium">
+          通常授業　{regularCourseSummary.count}授業 · {regularCourseSummary.credits}単位
+        </span>
+      </div>
 
-        {/* ── 時間外授業パネル ────────────────────────────────────────────────── */}
-        <div className="mt-2 bg-white dark:bg-[#1a1d27] rounded-2xl shadow-sm dark:shadow-none overflow-hidden">
+      {/* ── 時間外授業パネル（折り畳み、スクロールなしで常時表示） ────────────── */}
+      <div className="flex-shrink-0 px-2 pb-2">
+        <div className="bg-white dark:bg-[#1a1d27] rounded-2xl shadow-sm dark:shadow-none overflow-hidden">
           <div className="flex items-center px-4 py-3">
             <button
               onClick={() => setExtraOpen(o => !o)}
@@ -867,7 +1049,7 @@ export default function TimetableV2({
           </div>
 
           {extraOpen && (
-            <div className="border-t border-gray-50 dark:border-white/[0.05] px-3 pb-3 pt-2 flex flex-col gap-1.5">
+            <div className="border-t border-gray-50 dark:border-white/[0.05] px-3 pb-3 pt-2 flex flex-col gap-1.5 max-h-[38vh] overflow-y-auto overscroll-contain">
               {extraCourses.length === 0 ? (
                 <p className="text-center text-xs text-gray-300 dark:text-slate-600 py-4">
                   この学期の時間外授業はありません
@@ -896,7 +1078,7 @@ export default function TimetableV2({
                   }
 
                   return (
-                    <div key={c.class_id}
+                    <div key={`${c.class_id}|${c.academic_year ?? ''}`}
                       className={`flex items-center gap-2 rounded-xl px-3 py-2
                                   cursor-pointer transition-all
                                   ${isSelected
@@ -928,10 +1110,10 @@ export default function TimetableV2({
                           {c.intructor && (
                             <span className="text-xs text-gray-400 dark:text-slate-500 truncate">{c.intructor}</span>
                           )}
-                          {enrollmentVersion === 'new' && statusMap?.get(c.class_id) && (
+                          {enrollmentVersion === 'new' && statusMap?.get(`${c.class_id}|${c.academic_year ?? ''}`) && (
                             <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium
-                                             ${STATUS_CONFIG[statusMap.get(c.class_id)]?.badge ?? 'bg-gray-100 text-gray-500'}`}>
-                              {STATUS_CONFIG[statusMap.get(c.class_id)]?.label ?? statusMap.get(c.class_id)}
+                                             ${STATUS_CONFIG[statusMap.get(`${c.class_id}|${c.academic_year ?? ''}`) ]?.badge ?? 'bg-gray-100 text-gray-500'}`}>
+                              {STATUS_CONFIG[statusMap.get(`${c.class_id}|${c.academic_year ?? ''}`) ]?.label ?? statusMap.get(`${c.class_id}|${c.academic_year ?? ''}`)}
                             </span>
                           )}
                         </div>
@@ -1051,7 +1233,7 @@ export default function TimetableV2({
             setCatalogDetail(null)
           }}
           onClose={() => setCatalogDetail(null)}
-          enrollStatus={statusMap?.get(catalogDetail.classId)}
+          enrollStatus={statusMap?.get(`${catalogDetail.classId}|${catalogDetail.course?.academic_year ?? ''}`)}
           enrollmentVersion={enrollmentVersion}
           onStatusChange={onStatusChange
             ? (status) => {
@@ -1120,6 +1302,8 @@ export default function TimetableV2({
           defaultConfig={getDefaultPeriodConfig(academicYear, semester)}
           onSave={handleSaveSettings}
           onClose={() => setSettingsOpen(false)}
+          cellStyle={cellStyle}
+          onCellStyleChange={handleCellStyleChange}
         />
       )}
 
@@ -1138,6 +1322,7 @@ export default function TimetableV2({
           courses={courses}
           grade={selectedGrade}
           semester={semester}
+          academicYear={academicYear}
           selectedIds={selectedIds}
           onAdd={handleAddExtra}
           onClose={() => setExtraAddOpen(false)}
@@ -1203,17 +1388,19 @@ function ExtraCourseDetailModal({ course, onUnenroll, onClose }) {
 
 // ── AddExtraModal ─────────────────────────────────────────────────────────────
 
-function AddExtraModal({ courses, grade, semester, selectedIds, onAdd, onClose }) {
+function AddExtraModal({ courses, grade, semester, academicYear, selectedIds, onAdd, onClose }) {
   const [query,   setQuery]   = useState('')
   const [preview, setPreview] = useState(null)  // 詳細プレビュー対象
 
-  // 学年・学期の両条件を満たす時間外コースのみ（登録可能候補に完全一致）
+  // 学年・学期・開講年度の条件を満たす時間外コースのみ（登録可能候補に完全一致）
   const extraList = useMemo(() => {
     return courses.filter(c => {
       const t = c.normalized_time
-      return (!t || t === 'EXTRA' || t === '0') && isCourseEligible(c, grade, semester)
+      return (!t || t === 'EXTRA' || t === '0') &&
+             isCourseEligible(c, grade, semester) &&
+             (academicYear == null || c.academic_year == null || c.academic_year === academicYear)
     })
-  }, [courses, grade, semester])
+  }, [courses, grade, semester, academicYear])
 
   const filtered = useMemo(() => {
     if (!query) return extraList
@@ -1269,14 +1456,14 @@ function AddExtraModal({ courses, grade, semester, selectedIds, onAdd, onClose }
             </div>
           )}
           {filtered.map(c => {
-            const enrolled = selectedIds?.includes(c.class_id)
+            const enrolled = selectedIds?.includes(`${c.class_id}|${c.academic_year ?? ''}`)
             const termNum  = TERM_TO_NUM[c.term] ?? null
             const isTerm   = termNum != null
             const pillCls  = isTerm
               ? (termNum % 2 === 1 ? 'bg-blue-50 text-blue-600' : 'bg-violet-50 text-violet-600')
               : 'bg-indigo-50 text-indigo-500'
             return (
-              <button key={c.class_id}
+              <button key={`${c.class_id}|${c.academic_year ?? ''}`}
                 onClick={() => !enrolled && setPreview(c)}
                 disabled={enrolled}
                 className={`w-full text-left rounded-xl px-3 py-2.5 mb-1.5 border transition-all

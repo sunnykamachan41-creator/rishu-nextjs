@@ -14,7 +14,8 @@ export default function Summary({ courses, selectedIds, requirements, totalCredi
                                    enrollmentCredits = null, exemptionCredits = 0,
                                    duplicateCourseIds = [], creditSummary = null }) {
   const selectedSet = new Set(selectedIds)
-  const selected = useMemo(() => courses.filter(c => selectedSet.has(c.class_id)), [courses, selectedIds]) // eslint-disable-line
+  // composite key: class_id|academic_year
+  const selected = useMemo(() => courses.filter(c => selectedSet.has(`${c.class_id}|${c.academic_year ?? ''}`)), [courses, selectedIds]) // eslint-disable-line
 
   const byCategory = useMemo(() => {
     const map = {}

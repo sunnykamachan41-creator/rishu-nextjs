@@ -39,18 +39,28 @@ function extractDegrees(tags) {
  * @param {{ grade: number, semester: 'spring'|'fall' } | null} eligibility
  *   null = 制限なし（全授業表示モード）
  *   grade/semester は lib/eligibility.isCourseEligible に渡す
+ * @param {number|null} academicYear
+ *   開講年度フィルタ。コースに academic_year が設定されている場合のみ適用。
+ *   null または コースに academic_year がない場合はフィルタしない（後方互換）。
  */
-function applyFilters(courses, filters, query, selectedSet, eligibility) {
+function applyFilters(courses, filters, query, selectedSet, eligibility, academicYear = null) {
   return courses.filter(c => {
+    // ── 開講年度フィルタ（academic_year が設定されている科目のみ適用） ───────
+    // 科目に academic_year が無い（レガシーデータ）場合は除外しない。
+    if (academicYear != null && c.academic_year != null) {
+      if (c.academic_year !== academicYear) return false
+    }
+
     // ── 履修可能条件（学年・学期の自動フィルタ）────────────────────────────
     // ルールは lib/eligibility.isCourseEligible に一元管理
     if (eligibility && !isCourseEligible(c, eligibility.grade, eligibility.semester)) {
       return false
     }
 
-    // 履修状況
-    if (filters.enrolled === 'enrolled'     && !selectedSet.has(c.class_id)) return false
-    if (filters.enrolled === 'not-enrolled' &&  selectedSet.has(c.class_id)) return false
+    // 履修状況（composite key で判定）
+    const ck = `${c.class_id}|${c.academic_year ?? ''}`
+    if (filters.enrolled === 'enrolled'     && !selectedSet.has(ck)) return false
+    if (filters.enrolled === 'not-enrolled' &&  selectedSet.has(ck)) return false
 
     // 学期
     if (filters.terms.length > 0 && !filters.terms.includes(c.term)) return false
@@ -149,6 +159,8 @@ export default function CourseList({
   statusMap = new Map(), enrollmentVersion = 'legacy', onStatusChange,
   // 履修可能条件フィルタ
   selectedGrade = null, semesterFilter = null,
+  // 開講年度フィルタ（academic_year が設定されている科目のみ有効）
+  academicYear = null,
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [modal,      setModal]      = useState(null)
@@ -167,9 +179,19 @@ export default function CourseList({
   }, [selectedGrade, semesterFilter])
 
   const filtered = useMemo(
-    () => applyFilters(courses, filters, query, selectedSet, eligibility),
-    [courses, filters, query, selectedSet, eligibility]
+    () => applyFilters(courses, filters, query, selectedSet, eligibility, academicYear),
+    [courses, filters, query, selectedSet, eligibility, academicYear]
   )
+
+  // academic_year フィルタによる空状態かどうかを判定
+  // → 他のフィルタなしで academicYear だけ適用した結果も空なら「該当年度の授業なし」
+  const noCoursesForYear = useMemo(() => {
+    if (academicYear == null) return false
+    // academic_year が設定されている授業が存在し、かつその中に academicYear と一致するものがない場合
+    const aySet = courses.filter(c => c.academic_year != null)
+    if (aySet.length === 0) return false  // 全授業がレガシー → フィルタ無効
+    return !aySet.some(c => c.academic_year === academicYear)
+  }, [courses, academicYear])
 
   const activeTags = useMemo(() => buildActiveTags(filters), [filters])
 
@@ -260,15 +282,16 @@ export default function CourseList({
       <div className="flex-1 overflow-auto px-3 pb-4">
         <div className="flex flex-col gap-2">
           {filtered.map(c => {
-            // class_id のみで選択状態を判定（course_id を含めると同一科目の全セクションが選択済みになる）
-            const isSel      = selectedSet.has(c.class_id)
-            const isConflict = conflictSet.has(c.class_id)
+            // composite key: class_id|academic_year — prevents cross-year selection leakage
+            const ck         = `${c.class_id}|${c.academic_year ?? ''}`
+            const isSel      = selectedSet.has(ck)
+            const isConflict = conflictSet.has(ck)
             const isToggling = toggling === c.class_id
             const color      = getCourseColor(c)
             const badges     = getCourseBadges(c)
 
-            // ステータスも class_id のみ参照（course_id キーは statusMap に存在しない）
-            const enrollStatus = statusMap.get(c.class_id)
+            // ステータスも composite key 参照
+            const enrollStatus = statusMap.get(ck)
 
             const borderCls = isConflict
               ? 'border-2 border-red-500'
@@ -277,7 +300,7 @@ export default function CourseList({
                 : 'border border-transparent'
 
             return (
-              <button key={c.class_id} onClick={() => setModal(c)}
+              <button key={ck} onClick={() => setModal(c)}
                 className={`${color.card} rounded-2xl p-3.5 text-left shadow-sm transition-all ${borderCls}`}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
@@ -334,15 +357,32 @@ export default function CourseList({
           })}
 
           {filtered.length === 0 && (
-            <div className="text-center py-12 text-gray-400">
-              <div className="text-3xl mb-3">🔍</div>
-              <div className="text-sm">該当する授業が見つかりません</div>
-              {(filterCount > 0 || query) && (
-                <button
-                  onClick={() => { onFiltersChange(DEFAULT_FILTERS); onQueryChange('') }}
-                  className="mt-3 text-xs text-blue-500 font-medium block mx-auto">
-                  フィルターをリセット
-                </button>
+            <div className="text-center py-12 text-gray-400 dark:text-slate-500">
+              {noCoursesForYear ? (
+                /* academic_year ミスマッチによる空状態 */
+                <>
+                  <div className="text-3xl mb-3">📅</div>
+                  <div className="text-sm font-medium text-gray-500 dark:text-slate-400">
+                    {academicYear}年度の授業がありません
+                  </div>
+                  <div className="text-xs mt-1.5 text-gray-400 dark:text-slate-500 leading-relaxed px-6">
+                    現在の学年・入学年度の設定では、<br />
+                    この年度に開講された授業は登録できません。
+                  </div>
+                </>
+              ) : (
+                /* その他のフィルタによる空状態 */
+                <>
+                  <div className="text-3xl mb-3">🔍</div>
+                  <div className="text-sm">該当する授業が見つかりません</div>
+                  {(filterCount > 0 || query) && (
+                    <button
+                      onClick={() => { onFiltersChange(DEFAULT_FILTERS); onQueryChange('') }}
+                      className="mt-3 text-xs text-blue-500 font-medium block mx-auto">
+                      フィルターをリセット
+                    </button>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -362,12 +402,12 @@ export default function CourseList({
       {modal && (
         <CourseModal
           course={modal}
-          isSelected={selectedSet.has(modal.class_id)}
-          isConflict={conflictSet.has(modal.class_id)}
+          isSelected={selectedSet.has(`${modal.class_id}|${modal.academic_year ?? ''}`)}
+          isConflict={conflictSet.has(`${modal.class_id}|${modal.academic_year ?? ''}`)}
           toggling={toggling === modal.class_id}
           onToggle={() => { onToggle(modal.class_id); setModal(null) }}
           onClose={() => setModal(null)}
-          enrollStatus={statusMap.get(modal.class_id)}
+          enrollStatus={statusMap.get(`${modal.class_id}|${modal.academic_year ?? ''}`)}
           enrollmentVersion={enrollmentVersion}
           onStatusChange={onStatusChange
             ? (status) => { onStatusChange(modal.class_id, status); setModal(null) }

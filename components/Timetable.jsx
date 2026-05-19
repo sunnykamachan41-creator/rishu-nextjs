@@ -18,7 +18,7 @@ function buildGrid(courses, selectedSet, periods) {
     periods.forEach(({ period: p }) => { grid[d][p] = [] })
   })
   for (const c of courses) {
-    if (!selectedSet.has(c.class_id)) continue
+    if (!selectedSet.has(`${c.class_id}|${c.academic_year ?? ''}`)) continue
     const t = c.normalized_time
     if (!t || t === 'EXTRA' || t === '0' || t === 0) continue
     for (const slot of String(t).split('|')) {
@@ -55,11 +55,11 @@ export default function Timetable({
   })
 
   const termSelectedSet = new Set(
-    termCourses.filter(c => selectedSet.has(c.class_id)).map(c => c.class_id)
+    termCourses.filter(c => selectedSet.has(`${c.class_id}|${c.academic_year ?? ''}`)).map(c => `${c.class_id}|${c.academic_year ?? ''}`)
   )
   const grid   = buildGrid(termCourses, termSelectedSet, periodConfig)
   const extras = termCourses.filter(c =>
-    termSelectedSet.has(c.class_id) &&
+    termSelectedSet.has(`${c.class_id}|${c.academic_year ?? ''}`) &&
     (!c.normalized_time || c.normalized_time === 'EXTRA' ||
       c.normalized_time === '0' || c.normalized_time === 0)
   )
@@ -149,7 +149,7 @@ export default function Timetable({
                   <div key={d}
                     className="border-l border-gray-50 p-0.5 flex flex-col gap-0.5">
                     {cells.map(c => {
-                      const isConflict = conflictSet.has(c.class_id)
+                      const isConflict = conflictSet.has(`${c.class_id}|${c.academic_year ?? ''}`)
                       const color  = getCourseColor(c)
                       const badges = getCourseBadges(c)
                       const tileCls = isConflict
@@ -195,7 +195,7 @@ export default function Timetable({
             <div className="text-xs text-gray-500 font-semibold mb-2 px-1">集中講義・時間外</div>
             <div className="flex flex-col gap-2">
               {extras.map(c => {
-                const isConflict = conflictSet.has(c.class_id)
+                const isConflict = conflictSet.has(`${c.class_id}|${c.academic_year ?? ''}`)
                 const color  = getCourseColor(c)
                 const badges = getCourseBadges(c)
                 return (
@@ -233,8 +233,8 @@ export default function Timetable({
       {modal && (
         <CourseModal
           course={modal}
-          isSelected={selectedSet.has(modal.class_id)}
-          isConflict={conflictSet.has(modal.class_id)}
+          isSelected={selectedSet.has(`${modal.class_id}|${modal.academic_year ?? ''}`)}
+          isConflict={conflictSet.has(`${modal.class_id}|${modal.academic_year ?? ''}`)}
           toggling={toggling === modal.class_id}
           onToggle={() => { onToggle(modal.class_id); setModal(null) }}
           onClose={() => setModal(null)}
