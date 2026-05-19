@@ -681,23 +681,43 @@ export default function Page() {
         onChangeDepartment={handleStartDepartmentChange}
       />
 
-      {/* ── プロフィールトリガーボタン（本文エリア右上に固定） ─────── */}
-      {/* body は max-width:430px / margin:0 auto なので同じ計算式で右端を合わせる */}
-      {session?.user?.image && (
+      {/* ── アプリヘッダー（アバター + 学年・学科） ──────────────── */}
+      <div className="bg-white dark:bg-[#1a1d27] border-b border-gray-100 dark:border-white/[0.07] flex-shrink-0 flex items-center px-3 py-2">
+        {/* アバター → Drawer 開く */}
         <button
           onClick={() => setDrawerOpen(true)}
           aria-label="プロフィール・設定を開く"
-          className="fixed z-30 w-10 h-10 rounded-full overflow-hidden
-                     ring-2 ring-white/80 shadow-lg active:scale-90 transition-transform"
-          style={{
-            top:   '10px',
-            right: 'max(10px, calc((100vw - 430px) / 2 + 10px))',
-          }}
+          className="w-8 h-8 rounded-full overflow-hidden ring-2 ring-gray-100 dark:ring-white/10 shadow-sm active:scale-90 transition-transform flex-shrink-0"
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={session.user.image} alt="avatar" className="w-full h-full object-cover" />
+          {session?.user?.image ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img src={session.user.image} alt="avatar" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full bg-indigo-400 flex items-center justify-center text-white text-xs font-bold">
+              {session?.user?.name?.[0] ?? '?'}
+            </div>
+          )}
         </button>
-      )}
+
+        {/* 中央：タブ別コンテキスト */}
+        <div className="flex-1 text-center px-2">
+          {tab === 'timetable' ? (
+            <div className="flex items-center justify-center gap-1.5">
+              <span className="text-sm font-bold text-gray-800 dark:text-slate-100">{selectedGrade}年生</span>
+              {departmentLabel && (
+                <span className="text-xs text-gray-400 dark:text-slate-400 font-medium truncate max-w-[160px]">{departmentLabel}</span>
+              )}
+            </div>
+          ) : (
+            <span className="text-sm font-bold text-gray-800 dark:text-slate-100">
+              {TABS.find(t => t.id === tab)?.label ?? ''}
+            </span>
+          )}
+        </div>
+
+        {/* 右側スペーサー（左右対称） */}
+        <div className="w-8 flex-shrink-0" />
+      </div>
 
       {/* オンボーディング: department 未設定時は他の操作をロック */}
       {!department && (

@@ -21,8 +21,8 @@ const DAY_LBL = { MON: '月', TUE: '火', WED: '水', THU: '木', FRI: '金' }
 /** 学期 → [前半ターム（奇数）, 後半ターム（偶数）] */
 const TERM_PAIR = { spring: [1, 2], fall: [3, 4] }
 
-const CELL_H = 92   // 1コマのセル高さ (px)
-const HALF_H = 44   // 分割時の片側高さ (px)
+const CELL_H = 100  // 1コマのセル高さ (px)
+const HALF_H = 48   // 分割時の片側高さ (px)
 
 const TERM_TO_NUM = { '第1ターム': 1, '第2ターム': 2, '第3ターム': 3, '第4ターム': 4 }
 
@@ -837,13 +837,14 @@ export default function TimetableV2({
               onClick={() => setExtraOpen(o => !o)}
               className="flex-1 flex items-center gap-2 text-left select-none"
             >
-              <span className="text-xs font-semibold text-gray-600 dark:text-slate-300">時間外授業</span>
-              {extraCourses.length > 0 && (
-                <span className="bg-gray-100 dark:bg-[#252839] text-gray-500 dark:text-slate-400 text-xs font-bold
-                                 px-1.5 py-0.5 rounded-full leading-none">
-                  {extraCourses.length}
-                </span>
-              )}
+              <div className="flex flex-col gap-0.5">
+                <span className="text-xs font-semibold text-gray-600 dark:text-slate-300">時間外授業</span>
+                {extraCourses.length > 0 && (
+                  <span className="text-xs text-gray-400 dark:text-slate-500">
+                    {extraCourses.length}授業 · {extraCourses.reduce((s, c) => s + (Number(c.credits) || 0), 0)}単位
+                  </span>
+                )}
+              </div>
             </button>
             <button
               onClick={() => setExtraAddOpen(true)}
