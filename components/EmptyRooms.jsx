@@ -91,10 +91,10 @@ function continuousFree(roomId, day, period, usageMap, maxPeriod = 5) {
 
 /** 連続空きコマ数 → スタイル情報 */
 function freeStyle(free) {
-  if (free === 0) return { bg: 'bg-gray-100',  border: 'border-gray-200',  text: 'text-gray-400',  label: '使用中',        dot: 'bg-gray-300'  }
-  if (free === 1) return { bg: 'bg-green-50',  border: 'border-green-100', text: 'text-green-600', label: '空き',          dot: 'bg-green-300' }
-  if (free === 2) return { bg: 'bg-green-100', border: 'border-green-200', text: 'text-green-700', label: '2時間空き',     dot: 'bg-green-400' }
-  return               { bg: 'bg-green-200', border: 'border-green-300', text: 'text-green-900', label: `${free}時間空き`, dot: 'bg-green-600' }
+  if (free === 0) return { bg: 'bg-gray-100 dark:bg-white/[0.05]',  border: 'border-gray-200 dark:border-white/[0.07]',  text: 'text-gray-400 dark:text-slate-600',  label: '使用中',        dot: 'bg-gray-300 dark:bg-white/20'  }
+  if (free === 1) return { bg: 'bg-green-50 dark:bg-green-500/10',  border: 'border-green-100 dark:border-green-500/20', text: 'text-green-600 dark:text-green-400', label: '空き',          dot: 'bg-green-300' }
+  if (free === 2) return { bg: 'bg-green-100 dark:bg-green-500/20', border: 'border-green-200 dark:border-green-500/30', text: 'text-green-700 dark:text-green-300', label: '2時間空き',     dot: 'bg-green-400' }
+  return               { bg: 'bg-green-200 dark:bg-green-500/30', border: 'border-green-300 dark:border-green-500/40', text: 'text-green-900 dark:text-green-200', label: `${free}時間空き`, dot: 'bg-green-600 dark:bg-green-400' }
 }
 
 // ── EmptyRooms ────────────────────────────────────────────────────────────────
@@ -164,7 +164,7 @@ export default function EmptyRooms({ courses = [] }) {
     <div className="flex flex-col h-full">
 
       {/* ── フィルタバー ──────────────────────────────────────────────────────── */}
-      <div className="bg-white border-b border-gray-100 px-3 pt-2 pb-2 flex flex-col gap-2 flex-shrink-0">
+      <div className="bg-white dark:bg-[#1a1d27] border-b border-gray-100 dark:border-white/[0.07] px-3 pt-2 pb-2 flex flex-col gap-2 flex-shrink-0">
 
         {/* 学期セレクタ */}
         <div className="flex gap-1.5">
@@ -178,12 +178,12 @@ export default function EmptyRooms({ courses = [] }) {
               className={`flex-1 py-2 rounded-xl text-xs font-bold transition-colors border ${
                 selectedSem === key
                   ? 'bg-blue-500 text-white border-blue-500'
-                  : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'
+                  : 'bg-gray-50 dark:bg-[#252839] text-gray-500 dark:text-slate-400 border-gray-200 dark:border-white/[0.07] hover:bg-gray-100 dark:hover:bg-[#2a2d3f]'
               }`}
             >
               <div className="leading-tight">{label}</div>
               <div className={`text-xs font-normal leading-tight mt-0.5 ${
-                selectedSem === key ? 'text-blue-100' : 'text-gray-400'
+                selectedSem === key ? 'text-blue-100' : 'text-gray-400 dark:text-slate-500'
               }`}>{sub}</div>
             </button>
           ))}
@@ -198,14 +198,14 @@ export default function EmptyRooms({ courses = [] }) {
                 className={`w-8 h-8 rounded-xl text-xs font-bold transition-colors ${
                   selectedDay === d
                     ? 'bg-blue-500 text-white'
-                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                    : 'bg-gray-100 dark:bg-[#252839] text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-[#2a2d3f]'
                 }`}>
                 {DAY_LBL[d]}
               </button>
             ))}
           </div>
 
-          <div className="w-px h-5 bg-gray-200" />
+          <div className="w-px h-5 bg-gray-200 dark:bg-white/10" />
 
           <div className="flex gap-1">
             {PERIODS.map(p => (
@@ -226,7 +226,7 @@ export default function EmptyRooms({ courses = [] }) {
         <div className="flex items-center gap-2 flex-wrap">
           <Toggle label="空きのみ" value={onlyFree} onChange={setOnlyFree} />
           <Toggle label="2時間以上" value={only2h}  onChange={setOnly2h}  />
-          <div className="ml-auto flex items-center gap-2 text-xs text-gray-400">
+          <div className="ml-auto flex items-center gap-2 text-xs text-gray-400 dark:text-slate-500">
             <span className="flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
               {stats.free1 + stats.free2 + stats.free3}空き
@@ -240,16 +240,16 @@ export default function EmptyRooms({ courses = [] }) {
       </div>
 
       {/* ── 凡例 ──────────────────────────────────────────────────────────────── */}
-      <div className="flex-shrink-0 bg-gray-50 px-3 py-1.5 flex gap-3 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+      <div className="flex-shrink-0 bg-gray-50 dark:bg-[#1f2235] px-3 py-1.5 flex gap-3 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
         {[
-          { label: '使用中',    dot: 'bg-gray-300'  },
+          { label: '使用中',    dot: 'bg-gray-300 dark:bg-white/20'  },
           { label: '空き',      dot: 'bg-green-300' },
           { label: '2時間空き', dot: 'bg-green-400' },
           { label: '3時間以上', dot: 'bg-green-600' },
         ].map(({ label, dot }) => (
           <div key={label} className="flex items-center gap-1 whitespace-nowrap">
             <span className={`w-2 h-2 rounded-full ${dot} flex-shrink-0`} />
-            <span className="text-xs text-gray-500">{label}</span>
+            <span className="text-xs text-gray-500 dark:text-slate-400">{label}</span>
           </div>
         ))}
       </div>
@@ -261,7 +261,7 @@ export default function EmptyRooms({ courses = [] }) {
           if (visible.length === 0) return null
           return (
             <div key={building} className="mb-3">
-              <div className="text-xs font-bold text-gray-500 mb-1.5 px-0.5">{building}</div>
+              <div className="text-xs font-bold text-gray-500 dark:text-slate-400 mb-1.5 px-0.5">{building}</div>
               <div className="grid gap-1.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(64px, 1fr))' }}>
                 {visible.map(room => {
                   const free  = roomFree[room]
@@ -291,7 +291,7 @@ export default function EmptyRooms({ courses = [] }) {
         })}
 
         {visibleRooms.size === 0 && (
-          <div className="text-center py-16 text-gray-400">
+          <div className="text-center py-16 text-gray-400 dark:text-slate-500">
             <div className="text-3xl mb-2">🔍</div>
             <div className="text-sm">条件に一致する教室がありません</div>
           </div>
@@ -321,7 +321,7 @@ function Toggle({ label, value, onChange }) {
       className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl border transition-colors ${
         value
           ? 'bg-blue-500 text-white border-blue-500'
-          : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
+          : 'bg-white dark:bg-[#252839] text-gray-500 dark:text-slate-400 border-gray-200 dark:border-white/[0.07] hover:bg-gray-50 dark:hover:bg-[#2a2d3f]'
       }`}
     >
       {label}
@@ -339,17 +339,17 @@ function RoomDetailSheet({ room, day, sem, usageMap, onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end" style={{ maxWidth: 430, margin: '0 auto' }}>
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative w-full bg-white rounded-t-3xl px-4 pt-3 pb-6">
-        <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-3" />
+      <div className="relative w-full bg-white dark:bg-[#1f2235] rounded-t-3xl px-4 pt-3 pb-6">
+        <div className="w-10 h-1 bg-gray-200 dark:bg-white/10 rounded-full mx-auto mb-3" />
 
         <div className="flex items-center justify-between mb-4">
           <div>
-            <div className="text-lg font-bold text-gray-900">{room}</div>
-            <div className="text-xs text-gray-400">
+            <div className="text-lg font-bold text-gray-900 dark:text-slate-100">{room}</div>
+            <div className="text-xs text-gray-400 dark:text-slate-500">
               {SEM_LABEL[sem]} · {DAY_LBL[day]}曜日の使用状況
             </div>
           </div>
-          <button onClick={onClose} className="text-gray-400 text-xl p-1">×</button>
+          <button onClick={onClose} className="text-gray-400 dark:text-slate-500 text-xl p-1">×</button>
         </div>
 
         <div className="flex flex-col gap-2">
@@ -359,19 +359,19 @@ function RoomDetailSheet({ room, day, sem, usageMap, onClose }) {
             return (
               <div key={p}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-xl ${
-                  isUsed ? 'bg-gray-100' : 'bg-green-50'
+                  isUsed ? 'bg-gray-100 dark:bg-white/[0.05]' : 'bg-green-50 dark:bg-green-500/10'
                 }`}>
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0
-                                 text-xs font-bold ${isUsed ? 'bg-gray-200 text-gray-500' : 'bg-green-200 text-green-700'}`}>
+                                 text-xs font-bold ${isUsed ? 'bg-gray-200 dark:bg-white/10 text-gray-500 dark:text-slate-500' : 'bg-green-200 dark:bg-green-500/30 text-green-700 dark:text-green-300'}`}>
                   {p}
                 </div>
                 <div className="flex-1">
-                  <span className={`text-sm font-semibold ${isUsed ? 'text-gray-500' : 'text-green-700'}`}>
+                  <span className={`text-sm font-semibold ${isUsed ? 'text-gray-500 dark:text-slate-500' : 'text-green-700 dark:text-green-400'}`}>
                     {p}限
                   </span>
                 </div>
                 <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                  isUsed ? 'bg-gray-200 text-gray-500' : 'bg-green-100 text-green-600'
+                  isUsed ? 'bg-gray-200 dark:bg-white/10 text-gray-500 dark:text-slate-500' : 'bg-green-100 dark:bg-green-500/20 text-green-600 dark:text-green-400'
                 }`}>
                   {isUsed ? '使用中' : '空き'}
                 </span>

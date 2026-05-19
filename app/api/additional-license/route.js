@@ -55,10 +55,16 @@ const STATUS_ORDER = {
 
 export async function GET(request) {
   try {
+    // ── 認証 ──────────────────────────────────────────────────────────────
+    const { getServerSession } = await import('next-auth')
+    const { authOptions }      = await import('@/lib/auth')
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.student_id) {
+      return NextResponse.json({ error: 'ログインが必要です' }, { status: 401 })
+    }
+    const studentId = session.user.student_id
+
     const { searchParams } = new URL(request.url)
-    const studentId        = normalizeId(
-      searchParams.get('student_id') || process.env.STUDENT_ID || 'student_001'
-    )
     const includeProjected = searchParams.get('include_projected') === '1'
     console.log('[additional-license GET] student_id:', studentId, '| includeProjected:', includeProjected)
 
@@ -398,16 +404,20 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const body = await request.json()
-    const { license_id, action, studentId: rawSid = '' } = body
+    // ── 認証 ──────────────────────────────────────────────────────────────
+    const { getServerSession } = await import('next-auth')
+    const { authOptions }      = await import('@/lib/auth')
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.student_id) {
+      return NextResponse.json({ error: 'ログインが必要です' }, { status: 401 })
+    }
+    const studentId = session.user.student_id
 
-    const studentId = normalizeId(rawSid || process.env.STUDENT_ID || 'student_001')
+    const body = await request.json()
+    const { license_id, action } = body
     console.log('[additional-license POST] student_id:', studentId,
                 '| license_id:', license_id, '| action:', action)
 
-    if (!studentId) {
-      return NextResponse.json({ error: 'student_id is required' }, { status: 400 })
-    }
     if (!license_id) {
       return NextResponse.json({ error: 'license_id is required' }, { status: 400 })
     }
@@ -458,7 +468,9 @@ export async function POST(request) {
     const licRules = ruleRows.filter(r => getRuleLid(r) === lid)
     console.log('[additional-license POST] rules for license:', licRules.length)
 
-    let allPass = licRules.length > 0
+    let allPass        = licRules.length > 0
+    let totalEarned    = 0
+    let totalRequired  = 0
     for (const r of licRules) {
       const cat      = normKey(r.category || '')
       const required = Number(r.required_credits) || 0
@@ -467,6 +479,8 @@ export async function POST(request) {
       const pass     = evaluateCondition(earned, cond, required)
       console.log(`[additional-license POST]   category: ${cat} | summaryCredits: ${earned} | requiredCredits: ${required} | passed: ${pass}`)
       if (!pass) allPass = false
+      totalEarned   += earned
+      totalRequired += required
     }
 
     // graduation_result 準拠: TRUE / FALSE のみ
@@ -476,7 +490,9 @@ export async function POST(request) {
       studentId,
       departmentId,
       normalizeId(license_id),
-      status
+      status,
+      totalEarned,
+      totalRequired,
     )
 
     return NextResponse.json({

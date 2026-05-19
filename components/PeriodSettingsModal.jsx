@@ -55,16 +55,16 @@ export default function PeriodSettingsModal({
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
 
       {/* ボトムシート */}
-      <div className="relative w-full bg-white rounded-t-3xl flex flex-col"
+      <div className="relative w-full bg-white dark:bg-[#1f2235] rounded-t-3xl flex flex-col"
         style={{ maxHeight: '85dvh' }}>
 
         {/* ── ハンドル + ヘッダー ──────────────────────────────────────────── */}
-        <div className="flex-shrink-0 px-4 pt-2 pb-3 border-b border-gray-100">
-          <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-3" />
+        <div className="flex-shrink-0 px-4 pt-2 pb-3 border-b border-gray-100 dark:border-white/[0.07]">
+          <div className="w-10 h-1 bg-gray-200 dark:bg-white/10 rounded-full mx-auto mb-3" />
           <div className="flex items-start justify-between">
             <div>
-              <div className="text-base font-bold text-gray-900">コマ時間設定</div>
-              <div className="text-xs text-gray-400 mt-0.5">
+              <div className="text-base font-bold text-gray-900 dark:text-slate-100">コマ時間設定</div>
+              <div className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
                 {year}年度 {SEM_LABEL[semester]} — この年度・学期のみ適用
               </div>
             </div>
@@ -80,7 +80,7 @@ export default function PeriodSettingsModal({
         <div className="flex-1 overflow-auto px-4 py-3 space-y-2.5">
 
           {/* 列ヘッダー */}
-          <div className="grid gap-2 text-xs text-gray-400 font-medium px-1"
+          <div className="grid gap-2 text-xs text-gray-400 dark:text-slate-500 font-medium px-1"
             style={{ gridTemplateColumns: '28px 1fr 16px 1fr 28px' }}>
             <div className="text-center">限</div>
             <div className="text-center">開始</div>
@@ -91,11 +91,11 @@ export default function PeriodSettingsModal({
 
           {rows.map((row, i) => (
             <div key={i}
-              className="grid items-center gap-2 bg-gray-50 rounded-xl px-3 py-2.5"
+              className="grid items-center gap-2 bg-gray-50 dark:bg-[#252839] rounded-xl px-3 py-2.5"
               style={{ gridTemplateColumns: '28px 1fr 16px 1fr 28px' }}>
 
               {/* コマ番号 */}
-              <div className="text-center text-sm font-bold text-gray-500">
+              <div className="text-center text-sm font-bold text-gray-500 dark:text-slate-400">
                 {row.period}
               </div>
 
@@ -104,21 +104,21 @@ export default function PeriodSettingsModal({
                 type="time"
                 value={row.start}
                 onChange={e => updateRow(i, 'start', e.target.value)}
-                className="w-full bg-white border border-gray-200 rounded-lg px-2 py-1.5
-                           text-sm text-center font-medium
+                className="w-full bg-white dark:bg-[#1a1d27] border border-gray-200 dark:border-white/[0.07] rounded-lg px-2 py-1.5
+                           text-sm text-center font-medium text-gray-800 dark:text-slate-200
                            focus:outline-none focus:ring-2 focus:ring-blue-300"
               />
 
               {/* 区切り */}
-              <div className="text-center text-gray-300 text-xs">〜</div>
+              <div className="text-center text-gray-300 dark:text-slate-600 text-xs">〜</div>
 
               {/* 終了時刻 */}
               <input
                 type="time"
                 value={row.end}
                 onChange={e => updateRow(i, 'end', e.target.value)}
-                className="w-full bg-white border border-gray-200 rounded-lg px-2 py-1.5
-                           text-sm text-center font-medium
+                className="w-full bg-white dark:bg-[#1a1d27] border border-gray-200 dark:border-white/[0.07] rounded-lg px-2 py-1.5
+                           text-sm text-center font-medium text-gray-800 dark:text-slate-200
                            focus:outline-none focus:ring-2 focus:ring-blue-300"
               />
 
@@ -126,8 +126,8 @@ export default function PeriodSettingsModal({
               <button
                 onClick={() => removeRow(i)}
                 disabled={rows.length <= 1}
-                className="flex items-center justify-center text-gray-300
-                           hover:text-red-400 disabled:opacity-20 transition-colors"
+                className="flex items-center justify-center text-gray-300 dark:text-slate-600
+                           hover:text-red-400 dark:hover:text-red-400 disabled:opacity-20 transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -140,24 +140,24 @@ export default function PeriodSettingsModal({
           {/* コマ追加ボタン */}
           <button
             onClick={addRow}
-            className="w-full py-3 border-2 border-dashed border-gray-200 rounded-xl
-                       text-sm text-gray-400 font-medium
-                       hover:border-blue-300 hover:text-blue-400 transition-colors">
+            className="w-full py-3 border-2 border-dashed border-gray-200 dark:border-white/[0.07] rounded-xl
+                       text-sm text-gray-400 dark:text-slate-500 font-medium
+                       hover:border-blue-300 hover:text-blue-400 dark:hover:border-blue-500/40 dark:hover:text-blue-400 transition-colors">
             ＋ コマを追加
           </button>
 
           {/* 注意書き */}
-          <p className="text-xs text-gray-300 text-center pb-1">
+          <p className="text-xs text-gray-300 dark:text-slate-600 text-center pb-1">
             変更は{year}年度{SEM_LABEL[semester]}にのみ適用されます
           </p>
         </div>
 
         {/* ── フッター ─────────────────────────────────────────────────────── */}
-        <div className="flex-shrink-0 px-4 py-4 border-t border-gray-100 flex gap-2">
+        <div className="flex-shrink-0 px-4 py-4 border-t border-gray-100 dark:border-white/[0.07] flex gap-2">
           <button
             onClick={onClose}
-            className="flex-1 py-3 rounded-2xl border border-gray-200
-                       text-sm text-gray-600 font-semibold">
+            className="flex-1 py-3 rounded-2xl border border-gray-200 dark:border-white/[0.07]
+                       text-sm text-gray-600 dark:text-slate-300 font-semibold">
             キャンセル
           </button>
           <button

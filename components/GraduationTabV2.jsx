@@ -45,8 +45,8 @@ export default function GraduationTabV2({ onRefresh, studentId, includeProjected
 
 function ModeBar({ mode, onChange }) {
   return (
-    <div className="flex-shrink-0 bg-white border-b border-gray-100 px-3 py-2">
-      <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+    <div className="flex-shrink-0 bg-white dark:bg-[#1a1d27] border-b border-gray-100 dark:border-white/[0.07] px-3 py-2">
+      <div className="flex gap-1 bg-gray-100 dark:bg-[#252839] rounded-xl p-1">
         {[
           { id: 'graduation', label: '① 卒業要件' },
           { id: 'license',    label: '② 副免許・資格' },
@@ -56,8 +56,8 @@ function ModeBar({ mode, onChange }) {
             onClick={() => onChange(item.id)}
             className={`flex-1 text-xs font-semibold py-1.5 rounded-lg transition-all ${
               mode === item.id
-                ? 'bg-white text-blue-600 shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
+                ? 'bg-white dark:bg-[#1a1d27] text-blue-600 dark:text-blue-400 shadow-sm dark:shadow-none'
+                : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
             {item.label}
@@ -71,9 +71,7 @@ function ModeBar({ mode, onChange }) {
 // ── GraduationContent ─────────────────────────────────────────────────────────
 
 function GraduationContent({ studentId, includeProjected }) {
-  const swrKey = studentId
-    ? `/api/graduation/ui?student_id=${studentId}${includeProjected ? '&include_projected=1' : ''}`
-    : '/api/graduation/ui'
+  const swrKey = `/api/graduation/ui${includeProjected ? '?include_projected=1' : ''}`
 
   const { data, isLoading, error, mutate } = useSWR(swrKey, fetcher, {
     revalidateOnFocus: false,
@@ -120,13 +118,13 @@ function GraduationContent({ studentId, includeProjected }) {
     <div className="flex-1 flex flex-col overflow-hidden">
 
       {/* ── 全体サマリー ─────────────────────────────────────────────────────── */}
-      <div className="flex-shrink-0 bg-white border-b border-gray-100 px-4 pt-4 pb-5">
+      <div className="flex-shrink-0 bg-white dark:bg-[#1a1d27] border-b border-gray-100 dark:border-white/[0.07] px-4 pt-4 pb-5">
         {/* 上行: ラベル + パーセント */}
         <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-medium text-gray-400">卒業要件 達成状況</span>
+          <span className="text-xs font-medium text-gray-400 dark:text-slate-500">卒業要件 達成状況</span>
           <span className={`text-sm font-bold tabular-nums ${
             passedItems.length === requiredItems.length && requiredItems.length > 0
-              ? 'text-green-500' : 'text-gray-500'
+              ? 'text-green-500' : 'text-gray-500 dark:text-slate-400'
           }`}>
             {requiredItems.length > 0
               ? Math.round((passedItems.length / requiredItems.length) * 100)
@@ -135,7 +133,7 @@ function GraduationContent({ studentId, includeProjected }) {
         </div>
 
         {/* 全幅プログレスバー */}
-        <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+        <div className="h-3 bg-gray-100 dark:bg-white/10 rounded-full overflow-hidden">
           <div
             className={`h-full rounded-full transition-all duration-500 ${
               passedItems.length === requiredItems.length && requiredItems.length > 0
@@ -153,15 +151,15 @@ function GraduationContent({ studentId, includeProjected }) {
         <div className="flex items-baseline gap-1 mt-2.5">
           <span className={`text-2xl font-bold leading-none ${
             passedItems.length === requiredItems.length && requiredItems.length > 0
-              ? 'text-green-500' : 'text-gray-800'
+              ? 'text-green-500' : 'text-gray-800 dark:text-slate-100'
           }`}>
             {passedItems.length}
           </span>
-          <span className="text-sm text-gray-400">
+          <span className="text-sm text-gray-400 dark:text-slate-500">
             / {requiredItems.length} 項目達成
           </span>
           {passedItems.length === requiredItems.length && requiredItems.length > 0 && (
-            <span className="ml-1 text-xs font-semibold text-green-500 bg-green-50 px-2 py-0.5 rounded-full">
+            <span className="ml-1 text-xs font-semibold text-green-500 bg-green-50 dark:bg-green-500/10 px-2 py-0.5 rounded-full">
               ✓ 完了
             </span>
           )}
@@ -181,9 +179,7 @@ function GraduationContent({ studentId, includeProjected }) {
 // ── LicenseContent ────────────────────────────────────────────────────────────
 
 function LicenseContent({ studentId, includeProjected }) {
-  const swrKey = studentId
-    ? `/api/additional-license?student_id=${studentId}${includeProjected ? '&include_projected=1' : ''}`
-    : '/api/additional-license'
+  const swrKey = `/api/additional-license${includeProjected ? '?include_projected=1' : ''}`
 
   const { data, isLoading, error, mutate } = useSWR(swrKey, fetcher, {
     revalidateOnFocus: false,
@@ -247,11 +243,11 @@ function LicenseContent({ studentId, includeProjected }) {
     <div className="flex-1 flex flex-col overflow-hidden">
 
       {/* ── ヘッダー ─────────────────────────────────────────────────────────── */}
-      <div className="flex-shrink-0 bg-white border-b border-gray-100 px-4 py-3
+      <div className="flex-shrink-0 bg-white dark:bg-[#1a1d27] border-b border-gray-100 dark:border-white/[0.07] px-4 py-3
                       flex items-center justify-between">
         <div>
-          <div className="text-xs text-gray-400 font-medium">副免許・資格</div>
-          <div className="text-sm font-bold text-gray-800 mt-0.5">
+          <div className="text-xs text-gray-400 dark:text-slate-500 font-medium">副免許・資格</div>
+          <div className="text-sm font-bold text-gray-800 dark:text-slate-100 mt-0.5">
             {activeLicenses.length > 0
               ? `${activeLicenses.length}件 登録中`
               : '登録なし'}
@@ -260,8 +256,8 @@ function LicenseContent({ studentId, includeProjected }) {
         {pickerLicenses.length > 0 && (
           <button
             onClick={() => setAddOpen(true)}
-            className="text-xs font-semibold text-blue-500 bg-blue-50 px-3 py-1.5
-                       rounded-full hover:bg-blue-100 transition-colors"
+            className="text-xs font-semibold text-blue-500 bg-blue-50 dark:bg-blue-500/10 dark:text-blue-400 px-3 py-1.5
+                       rounded-full hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors"
           >
             ＋ 追加
           </button>
@@ -319,21 +315,21 @@ function AddLicenseModal({ licenses, toggling, onAdd, onClose }) {
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-t-3xl w-full pb-10"
+        className="bg-white dark:bg-[#1f2235] rounded-t-3xl w-full pb-10"
         onClick={e => e.stopPropagation()}
       >
         {/* drag handle */}
         <div className="flex justify-center pt-3 pb-1">
-          <div className="w-10 h-1 bg-gray-200 rounded-full" />
+          <div className="w-10 h-1 bg-gray-200 dark:bg-white/10 rounded-full" />
         </div>
 
         {/* title */}
         <div className="flex items-center justify-between px-5 py-3">
-          <div className="text-base font-bold text-gray-900">副免許・資格を追加</div>
+          <div className="text-base font-bold text-gray-900 dark:text-slate-100">副免許・資格を追加</div>
           <button
             onClick={onClose}
             className="w-7 h-7 flex items-center justify-center
-                       rounded-full bg-gray-100 text-gray-500 text-sm"
+                       rounded-full bg-gray-100 dark:bg-[#252839] text-gray-500 dark:text-slate-400 text-sm"
           >
             ✕
           </button>
@@ -353,10 +349,10 @@ function AddLicenseModal({ licenses, toggling, onAdd, onClose }) {
                 <div
                   key={lic.license_id}
                   className="w-full rounded-2xl px-4 py-3.5 border-2
-                             border-gray-100 bg-gray-50 opacity-60"
+                             border-gray-100 dark:border-white/[0.07] bg-gray-50 dark:bg-[#252839] opacity-60"
                 >
-                  <div className="text-sm font-semibold text-gray-400">{lic.label}</div>
-                  <div className="text-xs text-gray-400 mt-0.5">
+                  <div className="text-sm font-semibold text-gray-400 dark:text-slate-500">{lic.label}</div>
+                  <div className="text-xs text-gray-400 dark:text-slate-600 mt-0.5">
                     この学科では選択できません
                   </div>
                 </div>
@@ -368,11 +364,11 @@ function AddLicenseModal({ licenses, toggling, onAdd, onClose }) {
                   disabled={!!toggling}
                   className={`w-full rounded-2xl px-4 py-3.5 text-left transition-all border-2 ${
                     toggling
-                      ? 'opacity-50 cursor-not-allowed bg-gray-50 border-gray-100'
-                      : 'bg-blue-50 border-blue-200 hover:bg-blue-100 active:scale-[0.99]'
+                      ? 'opacity-50 cursor-not-allowed bg-gray-50 dark:bg-[#252839] border-gray-100 dark:border-white/[0.07]'
+                      : 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30 hover:bg-blue-100 dark:hover:bg-blue-500/20 active:scale-[0.99]'
                   }`}
                 >
-                  <div className="text-sm font-semibold text-blue-900">{lic.label}</div>
+                  <div className="text-sm font-semibold text-blue-900 dark:text-blue-300">{lic.label}</div>
                 </button>
               )
             ))
@@ -409,18 +405,18 @@ function LicenseCard({ license, toggling, onRemove }) {
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+    <div className="bg-white dark:bg-[#1a1d27] rounded-2xl shadow-sm dark:shadow-none overflow-hidden">
 
       {/* header */}
       <div
-        className="px-4 py-3 flex items-center justify-between border-b border-gray-50
-                   active:bg-gray-50 transition-colors cursor-pointer"
+        className="px-4 py-3 flex items-center justify-between border-b border-gray-50 dark:border-white/[0.05]
+                   active:bg-gray-50 dark:active:bg-[#252839] transition-colors cursor-pointer"
         onClick={() => setOpen(o => !o)}
       >
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <span className="text-sm font-bold text-gray-800 truncate">{label}</span>
+          <span className="text-sm font-bold text-gray-800 dark:text-slate-100 truncate">{label}</span>
           {overallPass && (
-            <span className="text-[10px] bg-green-100 text-green-600 font-semibold
+            <span className="text-[10px] bg-green-100 dark:bg-green-500/20 text-green-600 dark:text-green-400 font-semibold
                              px-1.5 py-0.5 rounded-full flex-shrink-0">
               ✓ 取得可
             </span>
@@ -429,7 +425,7 @@ function LicenseCard({ license, toggling, onRemove }) {
         <div className="flex items-center gap-2 flex-shrink-0">
           {totalRequired > 0 && (
             <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-              overallPass ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-500'
+              overallPass ? 'bg-green-100 dark:bg-green-500/20 text-green-600 dark:text-green-400' : 'bg-gray-100 dark:bg-[#252839] text-gray-500 dark:text-slate-400'
             }`}>
               {totalPassed}/{totalRequired}
             </span>
@@ -446,7 +442,7 @@ function LicenseCard({ license, toggling, onRemove }) {
 
       {/* progress bar + remove */}
       <div className="px-4 pt-2 pb-2">
-        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+        <div className="h-1.5 bg-gray-100 dark:bg-white/10 rounded-full overflow-hidden">
           <div
             className={`h-full rounded-full transition-all duration-500 ${
               overallPass ? 'bg-green-400' : 'bg-blue-400'
@@ -455,11 +451,11 @@ function LicenseCard({ license, toggling, onRemove }) {
           />
         </div>
         <div className="flex items-center justify-between mt-0.5">
-          <span className="text-[10px] text-gray-300">{pct}%</span>
+          <span className="text-[10px] text-gray-300 dark:text-slate-600">{pct}%</span>
           <button
             onClick={e => { e.stopPropagation(); onRemove() }}
             disabled={toggling}
-            className="text-[10px] text-gray-400 hover:text-red-500 transition-colors
+            className="text-[10px] text-gray-400 dark:text-slate-500 hover:text-red-500 transition-colors
                        disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {toggling ? '解除中…' : '取得をあきらめる'}
@@ -469,9 +465,9 @@ function LicenseCard({ license, toggling, onRemove }) {
 
       {/* expanded: requirement breakdown */}
       {open && (
-        <div className="border-t border-gray-100">
+        <div className="border-t border-gray-100 dark:border-white/[0.07]">
           {items.length === 0 ? (
-            <div className="px-4 py-5 text-center text-xs text-gray-300">
+            <div className="px-4 py-5 text-center text-xs text-gray-300 dark:text-slate-600">
               additional_license_ui に要件が登録されていません
             </div>
           ) : groups.length > 0 ? (
@@ -481,12 +477,12 @@ function LicenseCard({ license, toggling, onRemove }) {
               const passedCount = reqItems.filter(i => i.pass === true).length
               const allPassed   = reqItems.length > 0 && passedCount === reqItems.length
               return (
-                <div key={group} className="border-t border-gray-50 first:border-t-0">
-                  <div className="flex items-center justify-between px-4 py-2 bg-gray-50/70">
+                <div key={group} className="border-t border-gray-50 dark:border-white/[0.05] first:border-t-0">
+                  <div className="flex items-center justify-between px-4 py-2 bg-gray-50/70 dark:bg-[#1f2235]/60">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-bold text-gray-600">{group}</span>
+                      <span className="text-xs font-bold text-gray-600 dark:text-slate-300">{group}</span>
                       {allPassed && (
-                        <span className="text-[10px] bg-green-100 text-green-600 font-semibold
+                        <span className="text-[10px] bg-green-100 dark:bg-green-500/20 text-green-600 dark:text-green-400 font-semibold
                                          px-1 py-0.5 rounded-full">
                           ✓ 達成
                         </span>
@@ -494,13 +490,13 @@ function LicenseCard({ license, toggling, onRemove }) {
                     </div>
                     {reqItems.length > 0 && (
                       <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
-                        allPassed ? 'bg-green-100 text-green-600' : 'bg-gray-200 text-gray-500'
+                        allPassed ? 'bg-green-100 dark:bg-green-500/20 text-green-600 dark:text-green-400' : 'bg-gray-200 dark:bg-[#252839] text-gray-500 dark:text-slate-400'
                       }`}>
                         {passedCount}/{reqItems.length}
                       </span>
                     )}
                   </div>
-                  <div className="divide-y divide-gray-50">
+                  <div className="divide-y divide-gray-50 dark:divide-white/[0.05]">
                     {groupItems.map(item => (
                       <RequirementItem
                         key={item.category || item.display_name}
@@ -562,16 +558,16 @@ function GroupSection({ group, items }) {
   const allPassed     = requiredItems.length > 0 && passedItems.length === requiredItems.length
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+    <div className="bg-white dark:bg-[#1a1d27] rounded-2xl shadow-sm dark:shadow-none overflow-hidden">
       <button
         onClick={() => setOpen(o => !o)}
         className="w-full flex items-center justify-between px-4 py-3
-                   border-b border-gray-50 active:bg-gray-50 transition-colors"
+                   border-b border-gray-50 dark:border-white/[0.05] active:bg-gray-50 dark:active:bg-[#252839] transition-colors"
       >
         <div className="flex items-center gap-2">
-          <span className="text-sm font-bold text-gray-800">{group}</span>
+          <span className="text-sm font-bold text-gray-800 dark:text-slate-100">{group}</span>
           {allPassed && (
-            <span className="text-xs bg-green-100 text-green-600 font-semibold
+            <span className="text-xs bg-green-100 dark:bg-green-500/20 text-green-600 dark:text-green-400 font-semibold
                              px-1.5 py-0.5 rounded-full">
               ✓ 達成
             </span>
@@ -580,7 +576,7 @@ function GroupSection({ group, items }) {
         <div className="flex items-center gap-2.5">
           {requiredItems.length > 0 && (
             <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-              allPassed ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-500'
+              allPassed ? 'bg-green-100 dark:bg-green-500/20 text-green-600 dark:text-green-400' : 'bg-gray-100 dark:bg-[#252839] text-gray-500 dark:text-slate-400'
             }`}>
               {passedItems.length}/{requiredItems.length}
             </span>
@@ -596,7 +592,7 @@ function GroupSection({ group, items }) {
       </button>
 
       {open && (
-        <div className="divide-y divide-gray-50">
+        <div className="divide-y divide-gray-50 dark:divide-white/[0.05]">
           {items.map(item => (
             <RequirementItem
               key={item.category || item.display_name}
@@ -658,16 +654,16 @@ function RequirementItem({ item }) {
       <button
         onClick={() => hasCourses && setExpanded(o => !o)}
         className={`w-full px-4 py-3 text-left transition-colors
-                    ${hasCourses ? 'active:bg-gray-50' : 'cursor-default'}`}
+                    ${hasCourses ? 'active:bg-gray-50 dark:active:bg-[#252839]' : 'cursor-default'}`}
       >
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 flex-1 min-w-0">
             {required && (
               <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                pass === true ? 'bg-green-400' : 'bg-gray-200'
+                pass === true ? 'bg-green-400' : 'bg-gray-200 dark:bg-white/20'
               }`} />
             )}
-            <span className="text-sm text-gray-800 truncate leading-snug">
+            <span className="text-sm text-gray-800 dark:text-slate-200 truncate leading-snug">
               {display_name}
             </span>
           </div>
@@ -676,16 +672,16 @@ function RequirementItem({ item }) {
             {required ? (
               <div className="flex items-baseline gap-0.5">
                 <span className={`text-base font-bold leading-none ${
-                  pass === true ? 'text-green-600' : 'text-gray-800'
+                  pass === true ? 'text-green-600 dark:text-green-400' : 'text-gray-800 dark:text-slate-100'
                 }`}>
                   {current_credits}
                 </span>
-                <span className="text-xs text-gray-400 leading-none">
+                <span className="text-xs text-gray-400 dark:text-slate-500 leading-none">
                   &nbsp;/&nbsp;{required_credits}{conditionLabel}
                 </span>
               </div>
             ) : (
-              <span className="text-sm font-medium text-gray-400">
+              <span className="text-sm font-medium text-gray-400 dark:text-slate-500">
                 {current_credits} 単位
               </span>
             )}
@@ -702,7 +698,7 @@ function RequirementItem({ item }) {
         </div>
 
         {required && required_credits > 0 && (
-          <div className="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+          <div className="mt-2 h-1.5 bg-gray-100 dark:bg-white/10 rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full transition-all duration-500 ${
                 pass === true ? 'bg-green-400' : 'bg-blue-400'
@@ -713,38 +709,38 @@ function RequirementItem({ item }) {
         )}
 
         {!required && (
-          <div className="mt-0.5 text-xs text-gray-300">自由選択</div>
+          <div className="mt-0.5 text-xs text-gray-300 dark:text-slate-600">自由選択</div>
         )}
       </button>
 
       {/* course list (expanded) */}
       {expanded && hasCourses && (
-        <div className="border-t border-gray-100">
-          <div className="bg-slate-50 px-4 pt-2 pb-1.5 space-y-0.5">
+        <div className="border-t border-gray-100 dark:border-white/[0.07]">
+          <div className="bg-slate-50 dark:bg-[#1f2235] px-4 pt-2 pb-1.5 space-y-0.5">
             {courses.map((course, idx) => {
               const cfg      = STATUS_CONFIG_UI[course.status] ?? { label: course.status, badge: 'bg-gray-100 text-gray-500' }
               const dotColor = STATUS_DOT[course.status] ?? 'bg-gray-300'
               return (
                 <div key={course.class_id || idx} className="flex items-center gap-2.5 py-1.5">
                   <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${dotColor}`} />
-                  <span className="flex-1 text-xs text-gray-600 truncate leading-snug">
+                  <span className="flex-1 text-xs text-gray-600 dark:text-slate-300 truncate leading-snug">
                     {course.course_name || course.class_id}
                   </span>
                   <span className={`flex-shrink-0 text-[10px] font-medium px-1.5 py-0.5
                                     rounded-full leading-none opacity-80 ${cfg.badge}`}>
                     {cfg.label}
                   </span>
-                  <span className="flex-shrink-0 text-xs text-gray-400 tabular-nums w-7 text-right">
+                  <span className="flex-shrink-0 text-xs text-gray-400 dark:text-slate-500 tabular-nums w-7 text-right">
                     {course.credits}<span className="text-[10px]">単</span>
                   </span>
                 </div>
               )
             })}
           </div>
-          <div className="bg-slate-50 border-t border-slate-200 px-4 py-2
+          <div className="bg-slate-50 dark:bg-[#1f2235] border-t border-slate-200 dark:border-white/[0.07] px-4 py-2
                           flex items-center justify-between">
-            <span className="text-[10px] text-gray-400 tracking-wide">取得済み合計</span>
-            <span className="text-xs font-semibold text-gray-500">
+            <span className="text-[10px] text-gray-400 dark:text-slate-500 tracking-wide">取得済み合計</span>
+            <span className="text-xs font-semibold text-gray-500 dark:text-slate-400">
               {courses
                 .filter(c => c.status === 'COMPLETED')
                 .reduce((s, c) => s + c.credits, 0)}
@@ -761,10 +757,10 @@ function RequirementItem({ item }) {
 
 function ProjectedToggle({ active, onToggle }) {
   return (
-    <div className="flex-shrink-0 bg-white border-b border-gray-100 px-3 py-2 flex items-center justify-between">
+    <div className="flex-shrink-0 bg-white dark:bg-[#1a1d27] border-b border-gray-100 dark:border-white/[0.07] px-3 py-2 flex items-center justify-between">
       <div className="flex flex-col">
-        <span className="text-xs font-semibold text-gray-700">履修予定を含む</span>
-        <span className="text-xs text-gray-400 mt-0.5">
+        <span className="text-xs font-semibold text-gray-700 dark:text-slate-200">履修予定を含む</span>
+        <span className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
           {active ? '履修予定・履修中を取得済みとして集計中' : '取得済みのみを集計中'}
         </span>
       </div>
@@ -772,7 +768,7 @@ function ProjectedToggle({ active, onToggle }) {
         onClick={onToggle}
         className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent
                     transition-colors duration-200 focus:outline-none
-                    ${active ? 'bg-blue-500' : 'bg-gray-200'}`}
+                    ${active ? 'bg-blue-500' : 'bg-gray-200 dark:bg-slate-600'}`}
         role="switch"
         aria-checked={active}
       >
@@ -792,7 +788,7 @@ function LoadingState() {
   return (
     <div className="flex-1 flex flex-col gap-3 px-3 py-3 animate-pulse">
       {[1, 2, 3].map(i => (
-        <div key={i} className="bg-gray-100 rounded-2xl h-24" />
+        <div key={i} className="bg-gray-100 dark:bg-[#1f2235] rounded-2xl h-24" />
       ))}
     </div>
   )
@@ -802,16 +798,16 @@ function ErrorState({ message, onRetry }) {
   return (
     <div className="flex-1 flex flex-col items-center justify-center gap-3 px-8 text-center">
       <div className="text-3xl">⚠️</div>
-      <div className="text-sm font-semibold text-gray-500">データ取得エラー</div>
+      <div className="text-sm font-semibold text-gray-500 dark:text-slate-400">データ取得エラー</div>
       {message && (
-        <div className="text-xs text-gray-400 font-mono bg-gray-50 px-3 py-2 rounded-lg max-w-full break-all">
+        <div className="text-xs text-gray-400 dark:text-slate-500 font-mono bg-gray-50 dark:bg-[#1f2235] px-3 py-2 rounded-lg max-w-full break-all">
           {message}
         </div>
       )}
       <button
         onClick={onRetry}
         className="text-sm text-blue-500 font-semibold px-4 py-2 rounded-xl
-                   border border-blue-200 hover:bg-blue-50 transition-colors"
+                   border border-blue-200 dark:border-blue-500/30 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors"
       >
         再試行
       </button>

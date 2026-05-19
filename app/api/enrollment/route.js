@@ -1,62 +1,54 @@
 import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { upsertEnrollment, removeEnrollment, fetchAllSheets } from '@/lib/sheets'
-import { normalizeCourse, normalizeId } from '@/lib/transform'
-import { isCourseEligible, isGradeAllowed, isSemesterAllowed, termToSemKey } from '@/lib/eligibility'
+import { normalizeCourse } from '@/lib/transform'
+import { termToSemKey } from '@/lib/eligibility'
+
+export const dynamic = 'force-dynamic'
 
 /**
  * POST /api/enrollment
  *
- * Required fields (for COMPLETED / IN_PROGRESS / PLANNED):
- *   classId   — section-specific class ID (primary key)
- *   year      — integer 1–8 (student's current grade)
- *   semester  — 'spring' | 'fall' (current UI semester, used for validation only)
- *   status    — 'COMPLETED' | 'IN_PROGRESS' | 'PLANNED' | 'REMOVE'
- *
- * Optional:
- *   courseId  — derived from classId if omitted
- *
- * Guards (applied before write, cannot be bypassed):
- *   • year/semester validation: both are required and must be well-formed (→ 400)
- *   • isCourseEligible(course, year, semester) from lib/eligibility (→ 403 on violation)
- *
- * The semester stored in Sheets is derived from course.term via termToSemKey
- * (null for 通年), NOT the client-supplied semester — that field is validation-only.
- *
- * Eligibility rules live exclusively in lib/eligibility.ts.
+ * 認証: NextAuth セッション (session.user.student_id)
+ * クライアントから studentId を送る必要はない。
  */
-
-// ── Route handler ─────────────────────────────────────────────────────────────
-
 export async function POST(request) {
+  let _step = 'init'
   try {
+    // ── 認証 ────────────────────────────────────────────────────────────────
+    _step = 'auth'
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.student_id) {
+      return NextResponse.json({ error: 'ログインが必要です' }, { status: 401 })
+    }
+    const studentId = session.user.student_id
+
+    _step = 'parse-body'
     const body = await request.json()
-    const { classId, courseId, year, semester, status, department = '', studentId: rawStudentId = '' } = body
-    const studentId = normalizeId(rawStudentId || process.env.STUDENT_ID || 'student_001')
+    const { classId, courseId, year, semester, status } = body
 
-    if (!classId) {
-      return NextResponse.json({ error: 'classId is required' }, { status: 400 })
-    }
-    if (!status) {
-      return NextResponse.json({ error: 'status is required' }, { status: 400 })
-    }
+    console.log('[POST /api/enrollment] req:', { studentId, classId, status, year, semester })
 
-    // REMOVE は常に許可（ガード不要）
+    if (!classId) return NextResponse.json({ error: 'classId is required' }, { status: 400 })
+    if (!status)  return NextResponse.json({ error: 'status is required' },  { status: 400 })
+
+    // REMOVE は常に許可
     if (status === 'REMOVE') {
+      _step = 'remove'
       await removeEnrollment({ classId, studentId })
-      // [DEV] 自動再計算無効 — POST /api/recalculate で手動実行
       return NextResponse.json({ classId, removed: true })
     }
 
     const validStatuses = ['COMPLETED', 'IN_PROGRESS', 'PLANNED', 'FAILED', 'AUDIT', 'RE_ENROLL']
     if (!validStatuses.includes(status)) {
       return NextResponse.json(
-        { error: `Invalid status: ${status}. Must be one of ${validStatuses.join(', ')} or REMOVE` },
+        { error: `Invalid status: ${status}` },
         { status: 400 }
       )
     }
 
-    // ── 必須フィールドの厳密バリデーション（silent fail 禁止）────────────────
-    // year: 1〜8 の整数が必須。未送信・NaN・範囲外はすべて 400
+    // 学年バリデーション（範囲チェックのみ）
     const studentGrade = parseInt(String(year ?? ''), 10)
     if (!Number.isFinite(studentGrade) || studentGrade < 1 || studentGrade > 8) {
       return NextResponse.json(
@@ -65,7 +57,7 @@ export async function POST(request) {
       )
     }
 
-    // semester: 'spring' か 'fall' のみ受付。null・undefined・その他は 400
+    // 学期バリデーション（形式チェックのみ）
     if (semester !== 'spring' && semester !== 'fall') {
       return NextResponse.json(
         { error: 'semester は "spring" または "fall" で必須です', code: 'INVALID_SEMESTER', received: semester },
@@ -73,40 +65,13 @@ export async function POST(request) {
       )
     }
 
-    // ── 履修可能条件チェック（lib/eligibility の共通関数を使用）──────────────
-    // fetchAllSheets は 15 秒キャッシュ済みなので追加コストはほぼゼロ
+    // コースの保存学期を取得（学年・学期の履修可否チェックは行わない）
+    _step = 'fetchAllSheets'
     const { courses: rawCourses } = await fetchAllSheets(studentId)
     const course = rawCourses.map(normalizeCourse).find(c => c.class_id === classId)
-
-    if (course) {
-      // course は normalizeCourse 済み:
-      //   course.year = "2" などの数値文字列 or "" (transform.ts が保証)
-      //   course.term = "春学期" などの正規日本語文字列 (transform.ts が保証)
-
-      // 学年ガード（isGradeAllowed は正規化済み値を受け取り比較のみ実行）
-      if (!isGradeAllowed(course.year, studentGrade)) {
-        return NextResponse.json(
-          { error: '履修可能学年を満たしていません', code: 'GRADE_GUARD',
-            required: Number(course.year), actual: studentGrade },
-          { status: 403 }
-        )
-      }
-
-      // 学期ガード（通年は isSemesterAllowed が true を返すため通過）
-      if (!isSemesterAllowed(course.term, semester)) {
-        return NextResponse.json(
-          { error: '学期が一致しません', code: 'SEMESTER_GUARD',
-            required: termToSemKey(course.term), actual: semester },
-          { status: 403 }
-        )
-      }
-    }
-    // course が見つからない場合はカタログ外の授業として登録を許可（手動追加コース等）
-
-    // ストアする semester はコースの term から決定（通年 = null）
-    // クライアントの semester フィールドはバリデーション専用であり保存しない
     const storedSemester = course ? termToSemKey(course.term) : null
 
+    _step = 'upsertEnrollment'
     const finalStatus = await upsertEnrollment({
       classId, courseId,
       year: studentGrade,
@@ -115,11 +80,15 @@ export async function POST(request) {
       studentId,
     })
 
-    // [DEV] 自動再計算無効 — POST /api/recalculate で手動実行
-
     return NextResponse.json({ classId, status: finalStatus })
   } catch (err) {
-    console.error('[POST /api/enrollment]', err)
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    // Google API エラーは err.message が空で err.errors に詳細が入ることがある
+    const detail =
+      err.message ||
+      (Array.isArray(err.errors) ? JSON.stringify(err.errors) : '') ||
+      (err.response?.data ? JSON.stringify(err.response.data) : '') ||
+      String(err)
+    console.error(`[POST /api/enrollment] FAILED at step=${_step}:`, detail, err)
+    return NextResponse.json({ error: `[${_step}] ${detail}` }, { status: 500 })
   }
 }

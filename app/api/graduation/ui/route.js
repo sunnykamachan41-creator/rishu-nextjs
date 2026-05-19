@@ -45,15 +45,18 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(request) {
   try {
-    // ── Category normalization helper ───────────────────────────────────────
-    // normalizeId は NFKC のみで大文字小文字を変換しない。
-    // Sheets の入力値（"S" / "s" / "SA" / "sa" 混在）を case-insensitive に
-    // 扱うため、category 比較は必ず大文字に統一する。
     const normCat = s => normalizeId(String(s || '')).toUpperCase()
 
-    // ── Parallel fetch ──────────────────────────────────────────────────────
+    // ── 認証 ──────────────────────────────────────────────────────────────
+    const { getServerSession } = await import('next-auth')
+    const { authOptions }      = await import('@/lib/auth')
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.student_id) {
+      return NextResponse.json({ error: 'ログインが必要です' }, { status: 401 })
+    }
+    const studentId = session.user.student_id
+
     const { searchParams } = new URL(request.url)
-    const studentId        = normalizeId(searchParams.get('student_id') || process.env.STUDENT_ID || 'student_001')
     const includeProjected = searchParams.get('include_projected') === '1'
 
     const [uiRows, ruleRows, studentRows, categoryFormulaRows, progressRows, sheetsData] = await Promise.all([

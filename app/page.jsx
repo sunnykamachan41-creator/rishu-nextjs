@@ -1,14 +1,14 @@
 'use client'
 import { useState, useCallback, useMemo, useEffect } from 'react'
 import useSWR from 'swr'
+import { useSession, signIn } from 'next-auth/react'
 import TimetableV2 from '@/components/TimetableV2'
 import CourseList from '@/components/CourseList'
 import Requirements from '@/components/Requirements'
 import GraduationTabV2 from '@/components/GraduationTabV2'
 import Dashboard from '@/components/Dashboard'
 import EmptyRooms from '@/components/EmptyRooms'
-// PracticeChecker は summary タブ廃止に伴い一時非表示
-// import PracticeChecker from '@/components/PracticeChecker'
+import ProfileDrawer from '@/components/drawer/ProfileDrawer'
 import ExemptionModal from '@/components/ExemptionModal'
 import { DEFAULT_FILTERS } from '@/components/FilterDrawer'
 import {
@@ -16,17 +16,14 @@ import {
   loadMaxGrade, saveMaxGrade,
   gradeToYear,
 } from '@/lib/periodConfig'
-import { termToSemKey, isCourseEligible, logEligibilityCheck } from '@/lib/eligibility'
+import { termToSemKey } from '@/lib/eligibility'
 import { shouldShowReEnrollModal, canReEnroll } from '@/lib/enrollmentStatus'
 import ReEnrollModal from '@/components/ReEnrollModal'
 import OnboardingModal from '@/components/OnboardingModal'
 import { buildDepartmentsMap, getDepartmentLabel } from '@/lib/departments'
-import { loadEntries } from '@/lib/enrollmentStore'   // useCreditSummary の grade 配置マップ用
+import { loadEntries } from '@/lib/enrollmentStore'
 import { useCreditSummary } from '@/lib/useCreditSummary'
-// import { evaluateAllPractices } from '@/lib/practiceEligibility'
 import { loadExemptions } from '@/lib/exemptionStore'
-import { useSearchParams } from 'next/navigation'
-
 
 // ── SWR fetcher ───────────────────────────────────────────────────────────────
 
@@ -120,11 +117,16 @@ const TABS = [
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function Page() {
-  const searchParams = useSearchParams()
-  const studentId = searchParams.get('student_id') ?? 'student_001'
+  // ── 認証 ─────────────────────────────────────────────────────────────────
+  const { data: session, status: sessionStatus } = useSession()
+  // JWT callback で採番・格納された student_id（例: student_001）を使う
+  const studentId = session?.user?.student_id ?? ''
 
   const [tab, setTab] = useState('timetable')
   const [toggling, setToggling] = useState(null) // classId currently being toggled
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  // 学科変更キャンセル用：変更開始前の department_id を退避しておく
+  const [prevDepartment, setPrevDepartment] = useState('')
   const [timetableTermFilter, setTimetableTermFilter] = useState('春学期')
 
   // 再履修・聴講モーダル
@@ -155,7 +157,7 @@ export default function Page() {
       const res = await fetch('/api/users', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ department_id: value, studentId }),
+        body:    JSON.stringify({ department_id: value }),
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
@@ -243,10 +245,12 @@ export default function Page() {
     })
   }, [])
 
-  const { data, error, mutate, isLoading } = useSWR(`/api/data?student_id=${studentId}`, fetcher, {
-    refreshInterval: 30_000,   // re-fetch from Sheets every 30 s
-    revalidateOnFocus: true,   // re-fetch when user returns to tab
-    dedupingInterval: 5_000,
+  // studentId（email）が確定するまで fetch しない（null キーは SWR をスキップ）
+  const swrKey = studentId ? '/api/data' : null
+  const { data, error, mutate, isLoading } = useSWR(swrKey, fetcher, {
+    refreshInterval:  30_000,
+    revalidateOnFocus: true,
+    dedupingInterval:  5_000,
   })
 
   // departments master から id → label マップを構築
@@ -255,6 +259,22 @@ export default function Page() {
     () => buildDepartmentsMap(data?.departments),
     [data?.departments]
   )
+
+  // 表示用ラベル（Drawer・ヘッダーで使用）
+  const departmentLabel = getDepartmentLabel(department, departmentsMap)
+
+  // ドロワーから学科変更を開始するハンドラ
+  // 変更前の department_id を退避しておき、キャンセル時に復元できるようにする
+  const handleStartDepartmentChange = useCallback(() => {
+    setPrevDepartment(department)  // 現在値を退避
+    setDepartment('')              // '' にセット → OnboardingModal が開く
+  }, [department])
+
+  // 学科変更キャンセル：退避しておいた前の値に戻す（API 呼び出しなし）
+  const handleCancelDepartmentChange = useCallback(() => {
+    setDepartment(prevDepartment)
+    setPrevDepartment('')
+  }, [prevDepartment])
 
   // student_id が切り替わったら department を即リセット。
   // SWR のキーが変わり data が undefined になる前に '' にしておくことで、
@@ -289,17 +309,8 @@ export default function Page() {
     const courseId       = course?.course_id ?? null
     const courseSemester = course ? termToSemKey(course.term) : null
 
-    // ── 登録ガード（REMOVE 以外の場合にのみ適用）───────────────────────────
-    // isCourseEligible は lib/eligibility の共通関数（UI・API で同一ルール）
+    // 登録ガード（廃止）: 学年・学期チェックは警告なしで弾いていたため全廃。
     const isAdding = !data?.selectedIds?.includes(classId)
-    if (newStatus !== 'REMOVE' && course) {
-      const currentSemKey = timetableTermFilter === '秋学期' ? 'fall' : 'spring'
-      logEligibilityCheck(course, selectedGrade, currentSemKey)  // dev-only
-      if (!isCourseEligible(course, selectedGrade, currentSemKey)) {
-        setToggling(null)
-        return
-      }
-    }
 
     // ── 再履修・聴講チェック（新規追加時のみ）───────────────────────────────
     if (newStatus !== 'REMOVE' && isAdding && course) {
@@ -353,8 +364,11 @@ export default function Page() {
         ...(newStatus !== 'REMOVE' && { year: selectedGrade, semester: validationSemester }),
       }),
     })
-      .then(r => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+      .then(async r => {
+        if (!r.ok) {
+          const errBody = await r.json().catch(() => ({}))
+          throw new Error(`HTTP ${r.status}: ${errBody?.error ?? ''}`)
+        }
         setToggling(null)
         mutate()  // silent revalidation after successful write
       })
@@ -431,16 +445,8 @@ export default function Page() {
     const isAdding = !data?.selectedIds?.includes(classId)
     const status   = isAdding ? 'PLANNED' : 'REMOVE'
 
-    // ── 登録ガード（追加時のみ適用）──────────────────────────────────────────
-    // isCourseEligible は lib/eligibility の共通関数（UI・API で同一ルール）
-    if (isAdding && course) {
-      const currentSemKey = timetableTermFilter === '秋学期' ? 'fall' : 'spring'
-      logEligibilityCheck(course, selectedGrade, currentSemKey)  // dev-only
-      if (!isCourseEligible(course, selectedGrade, currentSemKey)) {
-        setToggling(null)
-        return
-      }
-    }
+    // 登録ガード（廃止）: 学年・学期チェックは警告なしで弾いていたため全廃。
+    // サーバー側も同様にガードを削除済み。
 
     // ── 再履修・聴講チェック（追加時のみ）────────────────────────────────────
     // 同一 course_id に COMPLETED / FAILED 履歴があれば ReEnrollModal を開く
@@ -463,18 +469,23 @@ export default function Page() {
     mutate(current => {
       if (!current) return current
       if (isAdding) {
+        const newStatusMap = { ...current.statusMap, [classId]: 'PLANNED' }
         return {
           ...current,
           selectedIds: [...current.selectedIds, classId],
+          statusMap:   newStatusMap,
           enrollment:  [...(current.enrollment ?? []), {
             class_id: classId, course_id: courseId ?? classId,
             year: selectedGrade, semester: courseSemester, status: 'PLANNED',
           }],
         }
       }
+      const newStatusMap = { ...current.statusMap }
+      delete newStatusMap[classId]
       return {
         ...current,
         selectedIds: current.selectedIds.filter(id => id !== classId),
+        statusMap:   newStatusMap,
         enrollment:  (current.enrollment ?? []).filter(e => e.class_id !== classId),
       }
     }, { revalidate: false })
@@ -494,8 +505,11 @@ export default function Page() {
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify(body),
     })
-      .then(r => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+      .then(async r => {
+        if (!r.ok) {
+          const errBody = await r.json().catch(() => ({}))
+          throw new Error(`HTTP ${r.status}: ${errBody?.error ?? ''}`)
+        }
         setToggling(null)
         mutate()  // silent revalidation
       })
@@ -566,15 +580,54 @@ export default function Page() {
 
   // ── Render states ─────────────────────────────────────────────────────────
 
+  // ── セッション確認中 ────────────────────────────────────────────────────
+  if (sessionStatus === 'loading') {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen gap-3">
+        <div className="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin" style={{ borderWidth: 3 }} />
+        <div className="text-sm text-gray-500 dark:text-slate-400">認証情報を確認中…</div>
+      </div>
+    )
+  }
+
+  // ── 未ログイン ───────────────────────────────────────────────────────────
+  if (sessionStatus === 'unauthenticated') {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen gap-6 px-8">
+        <div className="text-5xl">🎓</div>
+        <div>
+          <div className="text-xl font-bold text-gray-900 dark:text-slate-100 text-center">履修管理</div>
+          <div className="text-sm text-gray-400 dark:text-slate-400 text-center mt-1">
+            Google アカウントでログインしてください
+          </div>
+        </div>
+        <button
+          onClick={() => signIn('google')}
+          className="flex items-center gap-3 bg-white dark:bg-[#1a1d27] border border-gray-200 dark:border-white/[0.07] shadow-sm dark:shadow-none
+                     rounded-2xl px-6 py-3.5 text-sm font-semibold text-gray-700 dark:text-slate-200
+                     hover:bg-gray-50 dark:hover:bg-[#252839] active:scale-95 transition-all"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+          </svg>
+          Google でログイン
+        </button>
+      </div>
+    )
+  }
+
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-screen p-6 text-center">
         <div className="text-4xl mb-4">⚠️</div>
-        <div className="text-lg font-bold text-gray-800 mb-2">データの取得に失敗しました</div>
-        <div className="text-sm text-red-500 bg-red-50 rounded-xl px-4 py-3 mb-4 text-left font-mono break-all">
+        <div className="text-lg font-bold text-gray-800 dark:text-slate-100 mb-2">データの取得に失敗しました</div>
+        <div className="text-sm text-red-500 bg-red-50 dark:bg-red-500/10 rounded-xl px-4 py-3 mb-4 text-left font-mono break-all">
           {error.error || String(error)}
         </div>
-        <div className="text-xs text-gray-500 mb-4">
+        <div className="text-xs text-gray-500 dark:text-slate-400 mb-4">
           .env.local の GOOGLE_SERVICE_ACCOUNT_JSON と SPREADSHEET_ID を確認してください。
         </div>
         <button onClick={() => mutate()} className="bg-blue-500 text-white px-5 py-2.5 rounded-xl text-sm font-semibold">
@@ -588,7 +641,7 @@ export default function Page() {
     return (
       <div className="flex flex-col items-center justify-center h-screen gap-3">
         <div className="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin" style={{ borderWidth: 3 }} />
-        <div className="text-sm text-gray-500">Google Sheets からデータ取得中…</div>
+        <div className="text-sm text-gray-500 dark:text-slate-400">Google Sheets からデータ取得中…</div>
       </div>
     )
   }
@@ -618,11 +671,40 @@ export default function Page() {
 
   return (
     <div className="flex flex-col" style={{ height: '100dvh' }}>
+      {/* ── プロフィールDrawer ─────────────────────────────────────────── */}
+      <ProfileDrawer
+        isOpen={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        departmentLabel={departmentLabel}
+        enrollmentYear={enrollmentYear}
+        onEnrollmentYearChange={handleEnrollmentYearChange}
+        onChangeDepartment={handleStartDepartmentChange}
+      />
+
+      {/* ── プロフィールトリガーボタン（本文エリア右上に固定） ─────── */}
+      {/* body は max-width:430px / margin:0 auto なので同じ計算式で右端を合わせる */}
+      {session?.user?.image && (
+        <button
+          onClick={() => setDrawerOpen(true)}
+          aria-label="プロフィール・設定を開く"
+          className="fixed z-30 w-10 h-10 rounded-full overflow-hidden
+                     ring-2 ring-white/80 shadow-lg active:scale-90 transition-transform"
+          style={{
+            top:   '10px',
+            right: 'max(10px, calc((100vw - 430px) / 2 + 10px))',
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={session.user.image} alt="avatar" className="w-full h-full object-cover" />
+        </button>
+      )}
+
       {/* オンボーディング: department 未設定時は他の操作をロック */}
       {!department && (
         <OnboardingModal
           departments={data?.departments ?? []}
           onSelect={handleDepartmentSelect}
+          onCancel={prevDepartment ? handleCancelDepartmentChange : undefined}
         />
       )}
 
@@ -656,19 +738,19 @@ export default function Page() {
         {tab === 'courses' && (
           <div className="h-full flex flex-col">
             {/* 単位認定バナー */}
-            <div className="flex-shrink-0 bg-white border-b border-gray-100 px-3 py-2 flex items-center justify-between">
+            <div className="flex-shrink-0 bg-white dark:bg-[#1a1d27] border-b border-gray-100 dark:border-white/[0.07] px-3 py-2 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 font-medium">単位認定</span>
+                <span className="text-xs text-gray-500 dark:text-slate-400 font-medium">単位認定</span>
                 {exemptions.length > 0 && (
-                  <span className="bg-blue-100 text-blue-600 text-xs font-bold px-1.5 py-0.5 rounded-full">
+                  <span className="bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 text-xs font-bold px-1.5 py-0.5 rounded-full">
                     {exemptions.length}件
                   </span>
                 )}
               </div>
               <button
                 onClick={() => setExemptionOpen(true)}
-                className="text-xs font-semibold text-blue-500 bg-blue-50 px-3 py-1.5 rounded-full
-                           hover:bg-blue-100 transition-colors"
+                className="text-xs font-semibold text-blue-500 bg-blue-50 dark:bg-blue-500/10 dark:text-blue-400 px-3 py-1.5 rounded-full
+                           hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors"
               >
                 ＋ 単位認定を管理
               </button>
@@ -741,7 +823,7 @@ export default function Page() {
       )}
 
       {/* Bottom nav */}
-      <nav className="bg-white border-t border-gray-100 flex-shrink-0 nav-safe-bottom">
+      <nav className="bg-white dark:bg-[#1a1d27] border-t border-gray-100 dark:border-white/[0.07] flex-shrink-0 nav-safe-bottom">
         <div className="grid grid-cols-5">
           {TABS.map(t => {
             const Icon = t.icon
@@ -752,11 +834,11 @@ export default function Page() {
                 onClick={() => setTab(t.id)}
                 className={`nav-btn flex flex-col items-center justify-center py-3 gap-1
                             transition-colors active:scale-95
-                            ${active ? 'text-blue-500' : 'text-gray-400'}`}
+                            ${active ? 'text-blue-500' : 'text-gray-400 dark:text-slate-500'}`}
               >
                 <Icon active={active} />
                 <span className={`text-[11px] font-semibold leading-none
-                                  ${active ? 'text-blue-500' : 'text-gray-400'}`}>
+                                  ${active ? 'text-blue-500' : 'text-gray-400 dark:text-slate-500'}`}>
                   {t.label}
                 </span>
               </button>
@@ -776,10 +858,10 @@ export default function Page() {
  */
 function ProjectedToggle({ active, onToggle }) {
   return (
-    <div className="flex-shrink-0 bg-white border-b border-gray-100 px-3 py-2 flex items-center justify-between">
+    <div className="flex-shrink-0 bg-white dark:bg-[#1a1d27] border-b border-gray-100 dark:border-white/[0.07] px-3 py-2 flex items-center justify-between">
       <div className="flex flex-col">
-        <span className="text-xs font-semibold text-gray-700">取得予定を含む</span>
-        <span className="text-xs text-gray-400 mt-0.5">
+        <span className="text-xs font-semibold text-gray-700 dark:text-slate-200">取得予定を含む</span>
+        <span className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
           {active
             ? '履修予定・履修中を取得済みとして集計中'
             : '取得済みのみを集計中'}
@@ -789,7 +871,7 @@ function ProjectedToggle({ active, onToggle }) {
         onClick={onToggle}
         className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent
                     transition-colors duration-200 focus:outline-none
-                    ${active ? 'bg-blue-500' : 'bg-gray-200'}`}
+                    ${active ? 'bg-blue-500' : 'bg-gray-200 dark:bg-slate-600'}`}
         role="switch"
         aria-checked={active}
       >

@@ -31,28 +31,28 @@ const TERM_TO_NUM = { '第1ターム': 1, '第2ターム': 2, '第3ターム': 3
 function termColor(term) {
   if (term == null) {
     return {
-      bg:   'bg-indigo-100',
-      bd:   'border-indigo-200',
-      name: 'text-indigo-900',
+      bg:   'bg-indigo-100 dark:bg-indigo-500/20',
+      bd:   'border-indigo-200 dark:border-indigo-500/30',
+      name: 'text-indigo-900 dark:text-indigo-300',
       pill: 'bg-indigo-500',
-      del:  'text-indigo-300 hover:text-indigo-600',
+      del:  'text-indigo-300 dark:text-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-300',
     }
   }
   if (term % 2 === 1) {
     return {
-      bg:   'bg-blue-100',
-      bd:   'border-blue-200',
-      name: 'text-blue-900',
+      bg:   'bg-blue-100 dark:bg-blue-500/20',
+      bd:   'border-blue-200 dark:border-blue-500/30',
+      name: 'text-blue-900 dark:text-blue-300',
       pill: 'bg-blue-500',
-      del:  'text-blue-300 hover:text-blue-600',
+      del:  'text-blue-300 dark:text-blue-500 hover:text-blue-600 dark:hover:text-blue-300',
     }
   }
   return {
-    bg:   'bg-violet-100',
-    bd:   'border-violet-200',
-    name: 'text-violet-900',
+    bg:   'bg-violet-100 dark:bg-violet-500/20',
+    bd:   'border-violet-200 dark:border-violet-500/30',
+    name: 'text-violet-900 dark:text-violet-300',
     pill: 'bg-violet-500',
-    del:  'text-violet-300 hover:text-violet-600',
+    del:  'text-violet-300 dark:text-violet-500 hover:text-violet-600 dark:hover:text-violet-300',
   }
 }
 
@@ -144,27 +144,27 @@ function CourseDetailModal({ entry, onRemove, onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end" style={{ maxWidth: 430, margin: '0 auto' }}>
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative w-full bg-white rounded-t-3xl flex flex-col px-4 pt-3 pb-6 gap-4">
-        <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto" />
+      <div className="relative w-full bg-white dark:bg-[#1f2235] rounded-t-3xl flex flex-col px-4 pt-3 pb-6 gap-4">
+        <div className="w-10 h-1 bg-gray-200 dark:bg-white/10 rounded-full mx-auto" />
 
         <div className={`rounded-2xl ${c.bg} border ${c.bd} px-4 py-3 flex flex-col gap-2`}>
           <div className={`text-base font-bold ${c.name} leading-snug`}>
             {entry.courseTitle}
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-gray-500 font-medium">
+            <span className="text-xs text-gray-500 dark:text-slate-400 font-medium">
               {DAY_LBL_DETAIL[entry.day]}曜 {entry.period}限
             </span>
             {termLabel ? (
               <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
                 entry.term % 2 === 1
-                  ? 'bg-blue-100 text-blue-600'
-                  : 'bg-violet-100 text-violet-600'
+                  ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300'
+                  : 'bg-violet-100 dark:bg-violet-500/20 text-violet-600 dark:text-violet-300'
               }`}>
                 {termLabel}
               </span>
             ) : (
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-600">
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-300">
                 通常授業
               </span>
             )}
@@ -179,14 +179,14 @@ function CourseDetailModal({ entry, onRemove, onClose }) {
         <div className="flex gap-2">
           <button
             onClick={onClose}
-            className="flex-1 py-3 rounded-2xl border border-gray-200
-                       text-sm text-gray-600 font-semibold">
+            className="flex-1 py-3 rounded-2xl border border-gray-200 dark:border-white/[0.07]
+                       text-sm text-gray-600 dark:text-slate-300 font-semibold">
             閉じる
           </button>
           <button
             onClick={() => { onRemove(entry.id); onClose() }}
-            className="flex-1 py-3 rounded-2xl bg-red-50 border border-red-100
-                       text-sm text-red-500 font-semibold">
+            className="flex-1 py-3 rounded-2xl bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20
+                       text-sm text-red-500 dark:text-red-400 font-semibold">
             履修解除
           </button>
         </div>
@@ -216,7 +216,7 @@ function CourseBlock({ entry, height, onClick, selectable = false, selected = fa
           <div className={`absolute top-1.5 right-1.5 w-4 h-4 rounded-full border-2 flex items-center justify-center z-10
                            ${selected
                                ? 'bg-indigo-500 border-indigo-500'
-                               : 'bg-white border-gray-300'}`}>
+                               : 'bg-white dark:bg-[#252839] border-gray-300 dark:border-white/20'}`}>
             {selected && (
               <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
@@ -534,7 +534,7 @@ export default function TimetableV2({
     <div className="flex flex-col h-full">
 
       {/* ── ヘッダー ──────────────────────────────────────────────────────────── */}
-      <div className="bg-white border-b border-gray-100 px-3 pt-2 pb-0 flex flex-col gap-0">
+      <div className="bg-white dark:bg-[#1a1d27] border-b border-gray-100 dark:border-white/[0.07] px-3 pt-2 pb-0 flex flex-col gap-0">
 
         {/* 学年ピル行 */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-2" style={{ scrollbarWidth: 'none' }}>
@@ -546,7 +546,7 @@ export default function TimetableV2({
                 <button
                   onClick={() => onGradeChange(grade)}
                   className={`text-xs font-semibold rounded-xl transition-colors ${
-                    isActive ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                    isActive ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-[#252839] text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-[#2a2d3f]'
                   } ${isLast && maxGrade > 1 ? 'pl-3 pr-6 py-1.5' : 'px-3 py-1.5'}`}
                 >
                   {grade}年生
@@ -567,8 +567,8 @@ export default function TimetableV2({
           })}
           <button
             onClick={onAddGrade}
-            className="flex-shrink-0 text-xs text-gray-400 font-medium px-3 py-1.5
-                       rounded-xl border border-dashed border-gray-200
+            className="flex-shrink-0 text-xs text-gray-400 dark:text-slate-500 font-medium px-3 py-1.5
+                       rounded-xl border border-dashed border-gray-200 dark:border-white/[0.07]
                        hover:border-blue-300 hover:text-blue-400 transition-colors whitespace-nowrap"
           >
             ＋ 学年を追加
@@ -583,7 +583,7 @@ export default function TimetableV2({
                 className={`pb-2 text-sm font-semibold border-b-2 transition-colors ${
                   termFilter === label
                     ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-400'
+                    : 'border-transparent text-gray-400 dark:text-slate-500'
                 }`}>
                 {label}
               </button>
@@ -651,8 +651,8 @@ export default function TimetableV2({
             )}
             <button
               onClick={() => setConfirmReset(true)}
-              className="flex items-center gap-1 text-xs text-gray-400
-                         hover:text-red-400 transition-colors px-2 py-1 rounded-lg hover:bg-red-50"
+              className="flex items-center gap-1 text-xs text-gray-400 dark:text-slate-500
+                         hover:text-red-400 transition-colors px-2 py-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10"
               title="手動追加授業をリセット"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -662,8 +662,8 @@ export default function TimetableV2({
             </button>
             <button
               onClick={() => setSettingsOpen(true)}
-              className="flex items-center gap-1 text-xs text-gray-400
-                         hover:text-gray-600 transition-colors px-2 py-1 rounded-lg hover:bg-gray-50"
+              className="flex items-center gap-1 text-xs text-gray-400 dark:text-slate-500
+                         hover:text-gray-600 dark:hover:text-slate-300 transition-colors px-2 py-1 rounded-lg hover:bg-gray-50 dark:hover:bg-[#252839]"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -687,14 +687,14 @@ export default function TimetableV2({
 
       {/* ── グリッド ──────────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-auto p-2">
-        <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
+        <div className="bg-white dark:bg-[#1a1d27] rounded-2xl overflow-hidden shadow-sm dark:shadow-none">
 
           {/* ヘッダー行 */}
-          <div className="grid border-b border-gray-100"
+          <div className="grid border-b border-gray-100 dark:border-white/[0.07]"
             style={{ gridTemplateColumns: '44px repeat(5, 1fr)' }}>
             <div className="py-2" />
             {DAYS.map(d => (
-              <div key={d} className="py-2 text-center text-xs font-semibold text-gray-600">
+              <div key={d} className="py-2 text-center text-xs font-semibold text-gray-600 dark:text-slate-400">
                 {DAY_LBL[d]}
               </div>
             ))}
@@ -703,16 +703,16 @@ export default function TimetableV2({
           {/* コマ行 */}
           {periodConfig.map(({ period, start, end }) => (
             <div key={period}
-              className="grid border-b border-gray-50 last:border-0"
+              className="grid border-b border-gray-50 dark:border-white/[0.05] last:border-0"
               style={{ gridTemplateColumns: '44px repeat(5, 1fr)', height: CELL_H }}>
 
               {/* 時刻 + コマ番号 */}
               <div className="flex flex-col items-center justify-between py-1.5 px-0.5 select-none">
-                <span className="font-medium text-gray-300 leading-none" style={{ fontSize: 9 }}>
+                <span className="font-medium text-gray-300 dark:text-slate-600 leading-none" style={{ fontSize: 9 }}>
                   {start}
                 </span>
-                <span className="text-xs font-bold text-gray-400">{period}</span>
-                <span className="font-medium text-gray-300 leading-none" style={{ fontSize: 9 }}>
+                <span className="text-xs font-bold text-gray-400 dark:text-slate-500">{period}</span>
+                <span className="font-medium text-gray-300 dark:text-slate-600 leading-none" style={{ fontSize: 9 }}>
                   {end}
                 </span>
               </div>
@@ -728,7 +728,7 @@ export default function TimetableV2({
 
                 return (
                   <div key={d}
-                    className="border-l border-gray-50 overflow-hidden"
+                    className="border-l border-gray-50 dark:border-white/[0.05] overflow-hidden"
                     style={{ height: CELL_H }}>
 
                     {/* CASE 1: 通常授業（セル全体） */}
@@ -765,17 +765,17 @@ export default function TimetableV2({
                         ) : (
                           <div
                             className="flex items-center justify-center cursor-pointer
-                                       hover:bg-blue-50 transition-colors select-none"
+                                       hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors select-none"
                             style={{ height: HALF_H }}
                             onClick={() => openModal(d, period, oddT)}
                           >
-                            <span className="font-semibold text-blue-200" style={{ fontSize: 9 }}>
+                            <span className="font-semibold text-blue-200 dark:text-blue-500/50" style={{ fontSize: 9 }}>
                               第{oddT}T +
                             </span>
                           </div>
                         )}
 
-                        <div className="h-0.5 bg-gray-100 flex-shrink-0" />
+                        <div className="h-0.5 bg-gray-100 dark:bg-white/[0.05] flex-shrink-0" />
 
                         {lowerEntry ? (
                           <CourseBlock
@@ -792,11 +792,11 @@ export default function TimetableV2({
                         ) : (
                           <div
                             className="flex items-center justify-center cursor-pointer
-                                       hover:bg-violet-50 transition-colors select-none"
+                                       hover:bg-violet-50 dark:hover:bg-violet-500/10 transition-colors select-none"
                             style={{ height: HALF_H }}
                             onClick={() => openModal(d, period, evnT)}
                           >
-                            <span className="font-semibold text-violet-200" style={{ fontSize: 9 }}>
+                            <span className="font-semibold text-violet-200 dark:text-violet-500/50" style={{ fontSize: 9 }}>
                               第{evnT}T +
                             </span>
                           </div>
@@ -808,10 +808,10 @@ export default function TimetableV2({
                     {!halfEntry && !isSplit && (
                       <div
                         className="h-full flex items-center justify-center
-                                   cursor-pointer hover:bg-gray-50 transition-colors"
+                                   cursor-pointer hover:bg-gray-50 dark:hover:bg-[#252839] transition-colors"
                         onClick={() => openModal(d, period, null)}
                       >
-                        <span className="text-gray-200 font-light select-none"
+                        <span className="text-gray-200 dark:text-white/10 font-light select-none"
                           style={{ fontSize: 20 }}>
                           +
                         </span>
@@ -825,21 +825,21 @@ export default function TimetableV2({
         </div>
 
         {entries.length === 0 && (
-          <p className="mt-4 text-center text-xs text-gray-200 select-none">
+          <p className="mt-4 text-center text-xs text-gray-200 dark:text-white/20 select-none">
             セルをタップして授業を追加、または「履修登録」タブから選択してください
           </p>
         )}
 
         {/* ── 時間外授業パネル ────────────────────────────────────────────────── */}
-        <div className="mt-2 bg-white rounded-2xl shadow-sm overflow-hidden">
+        <div className="mt-2 bg-white dark:bg-[#1a1d27] rounded-2xl shadow-sm dark:shadow-none overflow-hidden">
           <div className="flex items-center px-4 py-3">
             <button
               onClick={() => setExtraOpen(o => !o)}
               className="flex-1 flex items-center gap-2 text-left select-none"
             >
-              <span className="text-xs font-semibold text-gray-600">時間外授業</span>
+              <span className="text-xs font-semibold text-gray-600 dark:text-slate-300">時間外授業</span>
               {extraCourses.length > 0 && (
-                <span className="bg-gray-100 text-gray-500 text-xs font-bold
+                <span className="bg-gray-100 dark:bg-[#252839] text-gray-500 dark:text-slate-400 text-xs font-bold
                                  px-1.5 py-0.5 rounded-full leading-none">
                   {extraCourses.length}
                 </span>
@@ -866,9 +866,9 @@ export default function TimetableV2({
           </div>
 
           {extraOpen && (
-            <div className="border-t border-gray-50 px-3 pb-3 pt-2 flex flex-col gap-1.5">
+            <div className="border-t border-gray-50 dark:border-white/[0.05] px-3 pb-3 pt-2 flex flex-col gap-1.5">
               {extraCourses.length === 0 ? (
-                <p className="text-center text-xs text-gray-300 py-4">
+                <p className="text-center text-xs text-gray-300 dark:text-slate-600 py-4">
                   この学期の時間外授業はありません
                 </p>
               ) : (
@@ -899,17 +899,17 @@ export default function TimetableV2({
                       className={`flex items-center gap-2 rounded-xl px-3 py-2
                                   cursor-pointer transition-all
                                   ${isSelected
-                                    ? 'bg-indigo-50 ring-1 ring-indigo-300'
+                                    ? 'bg-indigo-50 dark:bg-indigo-500/10 ring-1 ring-indigo-300 dark:ring-indigo-500/30'
                                     : isSelectable
-                                      ? 'bg-gray-50 opacity-70'
-                                      : 'bg-gray-50 active:opacity-70'}`}
+                                      ? 'bg-gray-50 dark:bg-[#1f2235] opacity-70'
+                                      : 'bg-gray-50 dark:bg-[#1f2235] active:opacity-70'}`}
                       onClick={handleClick}
                     >
                       {/* 一括選択チェックバッジ */}
                       {isSelectable && (
                         <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center
-                                         ${isSelected ? 'bg-indigo-500 border-indigo-500' : 'bg-white border-gray-300'}`}>
-                          {isSelected && (
+                                         ${isSelected ? 'bg-indigo-500 border-indigo-500' : 'bg-white dark:bg-[#252839] border-gray-300 dark:border-white/20'}`}>
+    {isSelected && (
                             <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                             </svg>
@@ -917,7 +917,7 @@ export default function TimetableV2({
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
-                        <div className="text-xs font-semibold text-gray-800 truncate">
+                        <div className="text-xs font-semibold text-gray-800 dark:text-slate-200 truncate">
                           {c.course_name}
                         </div>
                         <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
@@ -925,7 +925,7 @@ export default function TimetableV2({
                             {termLabel}
                           </span>
                           {c.intructor && (
-                            <span className="text-xs text-gray-400 truncate">{c.intructor}</span>
+                            <span className="text-xs text-gray-400 dark:text-slate-500 truncate">{c.intructor}</span>
                           )}
                           {enrollmentVersion === 'new' && statusMap?.get(c.class_id) && (
                             <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium
@@ -936,12 +936,12 @@ export default function TimetableV2({
                         </div>
                       </div>
                       {c.credits && (
-                        <span className="text-xs font-bold text-gray-400 flex-shrink-0">
+                        <span className="text-xs font-bold text-gray-400 dark:text-slate-500 flex-shrink-0">
                           {c.credits}単位
                         </span>
                       )}
                       {!isSelectable && (
-                        <svg className="w-3.5 h-3.5 text-gray-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-3.5 h-3.5 text-gray-300 dark:text-slate-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                         </svg>
                       )}
@@ -956,25 +956,25 @@ export default function TimetableV2({
 
       {/* ── 一括選択アクションバー ─────────────────────────────────────────────── */}
       {bulkSelectMode && (
-        <div className="flex-shrink-0 bg-white border-t border-gray-100 px-3 py-3 flex flex-col gap-2.5">
+        <div className="flex-shrink-0 bg-white dark:bg-[#1a1d27] border-t border-gray-100 dark:border-white/[0.07] px-3 py-3 flex flex-col gap-2.5">
 
           {/* 選択数 + 全選択・クリア */}
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-indigo-600">
+            <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
               {bulkSelected.size} 件選択中
             </span>
             <div className="flex gap-2">
               <button
                 onClick={handleBulkSelectAll}
-                className="text-xs text-gray-500 font-medium px-2.5 py-1 rounded-lg
-                           border border-gray-200 hover:bg-gray-50 transition-colors"
+                className="text-xs text-gray-500 dark:text-slate-400 font-medium px-2.5 py-1 rounded-lg
+                           border border-gray-200 dark:border-white/[0.07] hover:bg-gray-50 dark:hover:bg-[#252839] transition-colors"
               >
                 全選択
               </button>
               <button
                 onClick={handleBulkClear}
-                className="text-xs text-gray-500 font-medium px-2.5 py-1 rounded-lg
-                           border border-gray-200 hover:bg-gray-50 transition-colors"
+                className="text-xs text-gray-500 dark:text-slate-400 font-medium px-2.5 py-1 rounded-lg
+                           border border-gray-200 dark:border-white/[0.07] hover:bg-gray-50 dark:hover:bg-[#252839] transition-colors"
               >
                 クリア
               </button>
@@ -1156,21 +1156,21 @@ function ExtraCourseDetailModal({ course, onUnenroll, onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end" style={{ maxWidth: 430, margin: '0 auto' }}>
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative w-full bg-white rounded-t-3xl flex flex-col px-4 pt-3 pb-6 gap-4">
-        <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto" />
+      <div className="relative w-full bg-white dark:bg-[#1f2235] rounded-t-3xl flex flex-col px-4 pt-3 pb-6 gap-4">
+        <div className="w-10 h-1 bg-gray-200 dark:bg-white/10 rounded-full mx-auto" />
 
         <div className={`rounded-2xl ${c.bg} border ${c.bd} px-4 py-3 flex flex-col gap-2`}>
           <div className={`text-base font-bold ${c.name} leading-snug`}>
             {course.course_name}
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 dark:bg-[#252839] text-gray-500 dark:text-slate-400">
               時間外
             </span>
             <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-              termNum == null ? 'bg-indigo-100 text-indigo-600'
-                : termNum % 2 === 1 ? 'bg-blue-100 text-blue-600'
-                : 'bg-violet-100 text-violet-600'
+              termNum == null ? 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-300'
+                : termNum % 2 === 1 ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300'
+                : 'bg-violet-100 dark:bg-violet-500/20 text-violet-600 dark:text-violet-300'
             }`}>{termLabel}</span>
             {course.room && (
               <span className={`${c.pill} text-white text-xs font-semibold px-2.5 py-0.5 rounded-full`}>
@@ -1178,7 +1178,7 @@ function ExtraCourseDetailModal({ course, onUnenroll, onClose }) {
               </span>
             )}
           </div>
-          <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
+          <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-slate-400 mt-0.5">
             {course.intructor && <span>{course.intructor}</span>}
             {course.credits   && <span className="font-semibold">{course.credits}単位</span>}
           </div>
@@ -1186,12 +1186,12 @@ function ExtraCourseDetailModal({ course, onUnenroll, onClose }) {
 
         <div className="flex gap-2">
           <button onClick={onClose}
-            className="flex-1 py-3 rounded-2xl border border-gray-200 text-sm text-gray-600 font-semibold">
+            className="flex-1 py-3 rounded-2xl border border-gray-200 dark:border-white/[0.07] text-sm text-gray-600 dark:text-slate-300 font-semibold">
             閉じる
           </button>
           <button
             onClick={() => { onUnenroll(course.class_id); onClose() }}
-            className="flex-1 py-3 rounded-2xl bg-red-50 border border-red-100 text-sm text-red-500 font-semibold">
+            className="flex-1 py-3 rounded-2xl bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 text-sm text-red-500 dark:text-red-400 font-semibold">
             履修解除
           </button>
         </div>
@@ -1227,20 +1227,20 @@ function AddExtraModal({ courses, grade, semester, selectedIds, onAdd, onClose }
     <>
     <div className="fixed inset-0 z-50 flex items-end" style={{ maxWidth: 430, margin: '0 auto' }}>
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative w-full bg-white rounded-t-3xl flex flex-col" style={{ maxHeight: '80dvh' }}>
+      <div className="relative w-full bg-white dark:bg-[#1f2235] rounded-t-3xl flex flex-col" style={{ maxHeight: '80dvh' }}>
 
-        <div className="flex-shrink-0 px-4 pt-2 pb-3 border-b border-gray-100">
-          <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-3" />
+        <div className="flex-shrink-0 px-4 pt-2 pb-3 border-b border-gray-100 dark:border-white/[0.07]">
+          <div className="w-10 h-1 bg-gray-200 dark:bg-white/10 rounded-full mx-auto mb-3" />
           <div className="flex items-start justify-between">
             <div>
-              <div className="text-base font-bold text-gray-900">時間外授業を追加</div>
-              <div className="text-xs text-gray-400 mt-0.5">集中講義・特別授業など</div>
+              <div className="text-base font-bold text-gray-900 dark:text-slate-100">時間外授業を追加</div>
+              <div className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">集中講義・特別授業など</div>
             </div>
-            <button onClick={onClose} className="text-gray-400 text-xl leading-none p-1">×</button>
+            <button onClick={onClose} className="text-gray-400 dark:text-slate-500 text-xl leading-none p-1">×</button>
           </div>
         </div>
 
-        <div className="flex-shrink-0 px-4 py-2 border-b border-gray-50">
+        <div className="flex-shrink-0 px-4 py-2 border-b border-gray-50 dark:border-white/[0.05]">
           <div className="relative">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
               fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1249,8 +1249,8 @@ function AddExtraModal({ courses, grade, semester, selectedIds, onAdd, onClose }
             </svg>
             <input type="text" value={query} onChange={e => setQuery(e.target.value)}
               placeholder="授業名・担当者で検索" autoFocus
-              className="w-full bg-gray-50 rounded-xl pl-9 pr-8 py-2 text-sm border border-gray-100
-                         focus:outline-none focus:ring-2 focus:ring-blue-300" />
+              className="w-full bg-gray-50 dark:bg-[#252839] rounded-xl pl-9 pr-8 py-2 text-sm border border-gray-100 dark:border-white/[0.07]
+                         focus:outline-none focus:ring-2 focus:ring-blue-300 dark:text-slate-200" />
             {query && (
               <button onClick={() => setQuery('')}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">✕</button>
@@ -1280,21 +1280,21 @@ function AddExtraModal({ courses, grade, semester, selectedIds, onAdd, onClose }
                 disabled={enrolled}
                 className={`w-full text-left rounded-xl px-3 py-2.5 mb-1.5 border transition-all
                   ${enrolled
-                    ? 'bg-green-50 border-green-100 opacity-60'
-                    : 'bg-gray-50 border-gray-100 hover:bg-blue-50 hover:border-blue-200 active:scale-[0.99]'}`}
+                    ? 'bg-green-50 dark:bg-green-500/10 border-green-100 dark:border-green-500/20 opacity-60'
+                    : 'bg-gray-50 dark:bg-[#252839] border-gray-100 dark:border-white/[0.07] hover:bg-blue-50 dark:hover:bg-blue-500/10 hover:border-blue-200 dark:hover:border-blue-500/20 active:scale-[0.99]'}`}
               >
                 <div className="flex items-center gap-2">
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold text-gray-900 truncate">{c.course_name}</div>
+                    <div className="text-sm font-semibold text-gray-900 dark:text-slate-100 truncate">{c.course_name}</div>
                     <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                       <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${pillCls}`}>
                         {c.term || '通年'}
                       </span>
-                      {c.room      && <span className="text-xs text-gray-400">{c.room}</span>}
-                      {c.intructor && <span className="text-xs text-gray-400 truncate">{c.intructor}</span>}
+                      {c.room      && <span className="text-xs text-gray-400 dark:text-slate-500">{c.room}</span>}
+                      {c.intructor && <span className="text-xs text-gray-400 dark:text-slate-500 truncate">{c.intructor}</span>}
                     </div>
                   </div>
-                  {c.credits && <span className="text-xs text-gray-400 flex-shrink-0">{c.credits}単位</span>}
+                  {c.credits && <span className="text-xs text-gray-400 dark:text-slate-500 flex-shrink-0">{c.credits}単位</span>}
                   <span className={`text-xs flex-shrink-0 font-medium ${enrolled ? 'text-green-500' : 'text-blue-400'}`}>
                     {enrolled ? '登録済' : '詳細'}
                   </span>
@@ -1337,15 +1337,15 @@ function ConfirmDialog({ message, sub, confirmLabel, confirmClass, onConfirm, on
     <div className="fixed inset-0 z-[60] flex items-center justify-center px-6"
       style={{ maxWidth: 430, margin: '0 auto' }}>
       <div className="absolute inset-0 bg-black/50" onClick={onCancel} />
-      <div className="relative w-full bg-white rounded-2xl shadow-xl p-5 flex flex-col gap-4">
+      <div className="relative w-full bg-white dark:bg-[#1f2235] rounded-2xl shadow-xl dark:shadow-none p-5 flex flex-col gap-4">
         <div>
-          <div className="text-sm font-bold text-gray-900 leading-snug">{message}</div>
-          {sub && <div className="text-xs text-gray-400 mt-1">{sub}</div>}
+          <div className="text-sm font-bold text-gray-900 dark:text-slate-100 leading-snug">{message}</div>
+          {sub && <div className="text-xs text-gray-400 dark:text-slate-500 mt-1">{sub}</div>}
         </div>
         <div className="flex gap-2">
           <button
             onClick={onCancel}
-            className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 font-semibold">
+            className="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-white/[0.07] text-sm text-gray-600 dark:text-slate-300 font-semibold">
             キャンセル
           </button>
           <button

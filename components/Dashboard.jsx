@@ -12,7 +12,7 @@ function ProgressRing({ pct, size = 148, stroke = 13, color = '#3b82f6' }) {
   const offset = circ - Math.min(1, pct / 100) * circ
   return (
     <svg width={size} height={size} className="flex-shrink-0">
-      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#f3f4f6" strokeWidth={stroke} />
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="currentColor" className="text-gray-100 dark:text-white/10" strokeWidth={stroke} />
       <circle cx={size/2} cy={size/2} r={r}
         fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round"
         strokeDasharray={circ} strokeDashoffset={offset}
@@ -33,7 +33,7 @@ function TwoColorRing({ completedPct, failedPct, size = 72, stroke = 9 }) {
   const isFull   = completedPct >= 100
   return (
     <svg width={size} height={size} className="flex-shrink-0">
-      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#f3f4f6" strokeWidth={stroke} />
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="currentColor" className="text-gray-100 dark:text-white/10" strokeWidth={stroke} />
       <circle cx={size/2} cy={size/2} r={r}
         fill="none" stroke={isFull ? '#22c55e' : '#4ade80'} strokeWidth={stroke}
         strokeDasharray={`${greenLen} ${circ}`} strokeDashoffset={0}
@@ -70,7 +70,7 @@ function ProjectedBadge({ active, onToggle }) {
                   border transition-all ${
         active
           ? 'bg-blue-500 text-white border-blue-500'
-          : 'bg-white text-gray-500 border-gray-200 hover:border-blue-300'
+          : 'bg-white dark:bg-[#1a1d27] text-gray-500 dark:text-slate-400 border-gray-200 dark:border-white/[0.07] hover:border-blue-300'
       }`}
     >
       <span className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-white' : 'bg-gray-300'}`} />
@@ -92,9 +92,8 @@ export default function Dashboard({
   const [chartMode, setChartMode] = useState('all')
 
   // ── 卒業進捗 (graduation/ui) ─────────────────────────────────────────────
-  const gradKey = studentId
-    ? `/api/graduation/ui?student_id=${studentId}${includeProjected ? '&include_projected=1' : ''}`
-    : null
+  // サーバー側でセッションから user を特定するため student_id は不要
+  const gradKey = `/api/graduation/ui${includeProjected ? '?include_projected=1' : ''}`
   const { data: gradData, isLoading: gradLoading } = useSWR(gradKey, fetcher, {
     revalidateOnFocus: false,
   })
@@ -204,30 +203,30 @@ export default function Dashboard({
 
       {/* ① 卒業進捗リング ─────────────────────────────────────────────────── */}
       <div className={`px-3 ${onToggleProjected ? 'pt-2' : 'pt-3'}`}>
-        <div className="bg-white rounded-3xl shadow-sm px-5 py-5">
+        <div className="bg-white dark:bg-[#1a1d27] rounded-3xl shadow-sm dark:shadow-none px-5 py-5">
           {includeProjected && (
-            <div className="mb-3 text-[11px] text-blue-500 font-medium bg-blue-50
+            <div className="mb-3 text-[11px] text-blue-500 dark:text-blue-400 font-medium bg-blue-50 dark:bg-blue-500/10
                             rounded-xl px-3 py-1.5 inline-block">
               履修予定・履修中を含めて計算中
             </div>
           )}
-          <div className="text-xs font-semibold text-gray-400 mb-4">卒業進捗</div>
+          <div className="text-xs font-semibold text-gray-400 dark:text-slate-500 mb-4">卒業進捗</div>
 
           <div className="flex items-center gap-5">
             <div className="relative flex-shrink-0">
               <ProgressRing pct={ringPct} color={ringColor} />
               <div className="absolute inset-0 flex flex-col items-center justify-center">
                 {gradLoading ? (
-                  <div className="w-8 h-2 bg-gray-200 rounded animate-pulse" />
+                  <div className="w-8 h-2 bg-gray-200 dark:bg-white/10 rounded animate-pulse" />
                 ) : (
                   <>
                     <div className="flex items-baseline gap-0.5 leading-none">
-                      <span className="text-2xl font-bold text-gray-800">{totalCredits}</span>
+                      <span className="text-2xl font-bold text-gray-800 dark:text-slate-100">{totalCredits}</span>
                       {targetCredits > 0 && (
-                        <span className="text-xs text-gray-400">/{targetCredits}</span>
+                        <span className="text-xs text-gray-400 dark:text-slate-500">/{targetCredits}</span>
                       )}
                     </div>
-                    <div className="text-[11px] text-gray-400 mt-0.5">単位</div>
+                    <div className="text-[11px] text-gray-400 dark:text-slate-500 mt-0.5">単位</div>
                     {ringPct > 0 && (
                       <div className={`text-xs font-bold mt-1 ${ringPct >= 100 ? 'text-green-500' : 'text-blue-500'}`}>
                         {ringPct}%
@@ -240,33 +239,33 @@ export default function Dashboard({
 
             <div className="flex-1 space-y-3">
               <div>
-                <div className="text-[11px] text-gray-400">取得済み</div>
+                <div className="text-[11px] text-gray-400 dark:text-slate-500">取得済み</div>
                 <div className="flex items-baseline gap-1">
-                  <span className="text-xl font-bold text-gray-800">{totalCredits}</span>
-                  <span className="text-xs text-gray-400">単位</span>
+                  <span className="text-xl font-bold text-gray-800 dark:text-slate-100">{totalCredits}</span>
+                  <span className="text-xs text-gray-400 dark:text-slate-500">単位</span>
                 </div>
               </div>
               {targetCredits > 0 && (
                 <div>
-                  <div className="text-[11px] text-gray-400">卒業必要</div>
+                  <div className="text-[11px] text-gray-400 dark:text-slate-500">卒業必要</div>
                   <div className="flex items-baseline gap-1">
-                    <span className="text-xl font-bold text-gray-400">{targetCredits}</span>
-                    <span className="text-xs text-gray-300">単位</span>
+                    <span className="text-xl font-bold text-gray-400 dark:text-slate-400">{targetCredits}</span>
+                    <span className="text-xs text-gray-300 dark:text-slate-600">単位</span>
                   </div>
                 </div>
               )}
               {reqCount > 0 && (
                 <div>
-                  <div className="text-[11px] text-gray-400">要件達成</div>
+                  <div className="text-[11px] text-gray-400 dark:text-slate-500">要件達成</div>
                   <div className="flex items-baseline gap-1">
-                    <span className={`text-xl font-bold ${passedCount === reqCount ? 'text-green-500' : 'text-gray-800'}`}>
+                    <span className={`text-xl font-bold ${passedCount === reqCount ? 'text-green-500' : 'text-gray-800 dark:text-slate-100'}`}>
                       {passedCount}
                     </span>
-                    <span className="text-xs text-gray-400">/ {reqCount}項目</span>
+                    <span className="text-xs text-gray-400 dark:text-slate-500">/ {reqCount}項目</span>
                   </div>
                 </div>
               )}
-              <div className="text-[11px] text-gray-400 pt-0.5">
+              <div className="text-[11px] text-gray-400 dark:text-slate-500 pt-0.5">
                 取得済み {completedCount} 科目
               </div>
             </div>
@@ -274,17 +273,17 @@ export default function Dashboard({
 
           {reqCount > 0 && (
             <div className="mt-4">
-              <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+              <div className="h-1.5 bg-gray-100 dark:bg-white/10 rounded-full overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all duration-700 ${passedCount === reqCount ? 'bg-green-400' : 'bg-blue-400'}`}
                   style={{ width: `${Math.round((passedCount / reqCount) * 100)}%` }}
                 />
               </div>
               <div className="flex justify-between mt-1">
-                <span className="text-[10px] text-gray-400">
+                <span className="text-[10px] text-gray-400 dark:text-slate-500">
                   {passedCount === reqCount ? '✓ 卒業要件クリア' : `残り ${reqCount - passedCount} 項目`}
                 </span>
-                <span className="text-[10px] text-gray-400">
+                <span className="text-[10px] text-gray-400 dark:text-slate-500">
                   {Math.round((passedCount / reqCount) * 100)}%
                 </span>
               </div>
@@ -298,12 +297,12 @@ export default function Dashboard({
 
         {/* 取得率カード */}
         <div className={`rounded-2xl px-3 py-3 flex flex-col gap-2 ${
-          isFultan ? 'bg-green-50' : 'bg-white shadow-sm'
+          isFultan ? 'bg-green-50 dark:bg-green-500/10' : 'bg-white dark:bg-[#1a1d27] shadow-sm dark:shadow-none'
         }`}>
-          <div className="text-xs text-gray-400 font-medium leading-none">単位取得率</div>
+          <div className="text-xs text-gray-400 dark:text-slate-500 font-medium leading-none">単位取得率</div>
 
           {tanhokuDenom === 0 ? (
-            <div className="text-sm text-gray-300 font-semibold">──</div>
+            <div className="text-sm text-gray-300 dark:text-slate-600 font-semibold">──</div>
           ) : (
             <div className="flex items-center gap-2">
               {/* コンパクトドーナツ */}
@@ -326,12 +325,12 @@ export default function Dashboard({
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1 mb-0.5">
                   <div className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" />
-                  <span className="text-xs text-gray-600 leading-none">{completedCount}科目</span>
+                  <span className="text-xs text-gray-600 dark:text-slate-300 leading-none">{completedCount}科目</span>
                 </div>
                 {failedCount > 0 && (
                   <div className="flex items-center gap-1">
                     <div className="w-2 h-2 rounded-full bg-red-300 flex-shrink-0" />
-                    <span className="text-xs text-gray-600 leading-none">落単 {failedCount}</span>
+                    <span className="text-xs text-gray-600 dark:text-slate-300 leading-none">落単 {failedCount}</span>
                   </div>
                 )}
                 {isFultan && (
@@ -345,28 +344,28 @@ export default function Dashboard({
         </div>
 
         {/* 今学期情報カード */}
-        <div className="bg-white rounded-2xl px-3 py-3 shadow-sm flex flex-col gap-1.5">
-          <div className="text-xs text-gray-400 font-medium leading-none">今学期</div>
+        <div className="bg-white dark:bg-[#1a1d27] rounded-2xl px-3 py-3 shadow-sm dark:shadow-none flex flex-col gap-1.5">
+          <div className="text-xs text-gray-400 dark:text-slate-500 font-medium leading-none">今学期</div>
           {inProgressCount === 0 ? (
-            <div className="text-sm text-gray-300 font-semibold">──</div>
+            <div className="text-sm text-gray-300 dark:text-slate-600 font-semibold">──</div>
           ) : (
             <>
               <div className="flex items-baseline gap-1">
-                <span className="text-base font-bold text-gray-800 leading-none">{inProgressCount}</span>
-                <span className="text-xs text-gray-400">授業</span>
-                <span className="text-base font-bold text-gray-800 leading-none ml-1">{inProgressCredits}</span>
-                <span className="text-xs text-gray-400">単位</span>
+                <span className="text-base font-bold text-gray-800 dark:text-slate-100 leading-none">{inProgressCount}</span>
+                <span className="text-xs text-gray-400 dark:text-slate-500">授業</span>
+                <span className="text-base font-bold text-gray-800 dark:text-slate-100 leading-none ml-1">{inProgressCredits}</span>
+                <span className="text-xs text-gray-400 dark:text-slate-500">単位</span>
               </div>
               {attendanceDays.size > 0 && (
-                <div className="text-[11px] text-gray-500 leading-none">
+                <div className="text-[11px] text-gray-500 dark:text-slate-400 leading-none">
                   週{attendanceDays.size}回登校
                 </div>
               )}
               <div className="text-[11px] leading-none">
                 {zenkyuCount > 0 ? (
-                  <span className="text-blue-500 font-semibold">全休 {zenkyuCount}日</span>
+                  <span className="text-blue-500 dark:text-blue-400 font-semibold">全休 {zenkyuCount}日</span>
                 ) : (
-                  <span className="text-gray-400">全休なし</span>
+                  <span className="text-gray-400 dark:text-slate-500">全休なし</span>
                 )}
               </div>
             </>
@@ -376,13 +375,13 @@ export default function Dashboard({
 
       {/* ③ グラフカード（全授業ドーナツ / 学期別・学年別棒グラフ）────────────── */}
       <div className="px-3 mt-3">
-        <div className="bg-white rounded-3xl shadow-sm px-5 py-5">
+        <div className="bg-white dark:bg-[#1a1d27] rounded-3xl shadow-sm dark:shadow-none px-5 py-5">
 
           <div className="flex items-center justify-between mb-4">
-            <div className="text-xs font-semibold text-gray-400">
+            <div className="text-xs font-semibold text-gray-400 dark:text-slate-500">
               {chartMode === 'all' ? '取得率' : chartMode === 'semester' ? '春秋学期別 取得単位' : '学年別 取得単位'}
             </div>
-            <div className="flex bg-gray-100 rounded-lg p-0.5 gap-0.5">
+            <div className="flex bg-gray-100 dark:bg-[#252839] rounded-lg p-0.5 gap-0.5">
               {[
                 { id: 'all',      label: '全授業' },
                 { id: 'semester', label: '学期別' },
@@ -391,8 +390,8 @@ export default function Dashboard({
                 <button key={opt.id} onClick={() => setChartMode(opt.id)}
                   className={`text-[11px] font-semibold px-2.5 py-1 rounded-md transition-all ${
                     chartMode === opt.id
-                      ? 'bg-white text-blue-600 shadow-sm'
-                      : 'text-gray-400 hover:text-gray-600'
+                      ? 'bg-white dark:bg-[#1a1d27] text-blue-600 dark:text-blue-400 shadow-sm dark:shadow-none'
+                      : 'text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300'
                   }`}
                 >
                   {opt.label}
@@ -420,8 +419,8 @@ export default function Dashboard({
                       </>
                     ) : (
                       <>
-                        <div className="text-2xl font-bold text-gray-800 leading-none">{tanhokuPct}</div>
-                        <div className="text-[11px] text-gray-400 leading-none">%</div>
+                        <div className="text-2xl font-bold text-gray-800 dark:text-slate-100 leading-none">{tanhokuPct}</div>
+                        <div className="text-[11px] text-gray-400 dark:text-slate-500 leading-none">%</div>
                       </>
                     )}
                   </div>
@@ -430,28 +429,28 @@ export default function Dashboard({
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full bg-green-400 flex-shrink-0" />
                     <div>
-                      <div className="text-[11px] text-gray-400">取得済み</div>
+                      <div className="text-[11px] text-gray-400 dark:text-slate-500">取得済み</div>
                       <div className="flex items-baseline gap-1 mt-0.5">
-                        <span className="text-lg font-bold text-gray-800">{completedCount}</span>
-                        <span className="text-xs text-gray-400">科目</span>
+                        <span className="text-lg font-bold text-gray-800 dark:text-slate-100">{completedCount}</span>
+                        <span className="text-xs text-gray-400 dark:text-slate-500">科目</span>
                       </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full bg-red-300 flex-shrink-0" />
                     <div>
-                      <div className="text-[11px] text-gray-400">落単</div>
+                      <div className="text-[11px] text-gray-400 dark:text-slate-500">落単</div>
                       <div className="flex items-baseline gap-1 mt-0.5">
-                        <span className="text-lg font-bold text-gray-800">{failedCount}</span>
-                        <span className="text-xs text-gray-400">科目</span>
+                        <span className="text-lg font-bold text-gray-800 dark:text-slate-100">{failedCount}</span>
+                        <span className="text-xs text-gray-400 dark:text-slate-500">科目</span>
                       </div>
                     </div>
                   </div>
-                  <div className="pt-1 border-t border-gray-100">
-                    <div className="text-[11px] text-gray-400">履修総数</div>
+                  <div className="pt-1 border-t border-gray-100 dark:border-white/[0.07]">
+                    <div className="text-[11px] text-gray-400 dark:text-slate-500">履修総数</div>
                     <div className="flex items-baseline gap-1 mt-0.5">
-                      <span className="text-base font-bold text-gray-600">{tanhokuDenom}</span>
-                      <span className="text-xs text-gray-400">科目</span>
+                      <span className="text-base font-bold text-gray-600 dark:text-slate-300">{tanhokuDenom}</span>
+                      <span className="text-xs text-gray-400 dark:text-slate-500">科目</span>
                     </div>
                   </div>
                 </div>
@@ -471,10 +470,10 @@ export default function Dashboard({
                 <div className="space-y-2.5">
                   {barData.map(({ label, credits }) => (
                     <div key={label} className="flex items-center gap-3">
-                      <div className="text-xs text-gray-500 w-16 flex-shrink-0 text-right leading-tight">
+                      <div className="text-xs text-gray-500 dark:text-slate-400 w-16 flex-shrink-0 text-right leading-tight">
                         {label}
                       </div>
-                      <div className="flex-1 relative h-7 bg-gray-50 rounded-xl overflow-hidden">
+                      <div className="flex-1 relative h-7 bg-gray-50 dark:bg-[#1f2235] rounded-xl overflow-hidden">
                         <div
                           className="absolute inset-y-0 left-0 rounded-xl transition-all duration-700"
                           style={{
@@ -492,13 +491,13 @@ export default function Dashboard({
                     </div>
                   ))}
                 </div>
-                <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
-                  <span className="text-xs text-gray-400">
+                <div className="mt-4 pt-3 border-t border-gray-100 dark:border-white/[0.07] flex items-center justify-between">
+                  <span className="text-xs text-gray-400 dark:text-slate-500">
                     {includeProjected ? '累計（予定含む）' : '累計取得単位'}
                   </span>
-                  <span className="text-sm font-bold text-gray-700">
+                  <span className="text-sm font-bold text-gray-700 dark:text-slate-200">
                     {barData.reduce((s, d) => s + d.credits, 0)}
-                    <span className="text-xs font-normal text-gray-400 ml-0.5">単位</span>
+                    <span className="text-xs font-normal text-gray-400 dark:text-slate-500 ml-0.5">単位</span>
                   </span>
                 </div>
               </>

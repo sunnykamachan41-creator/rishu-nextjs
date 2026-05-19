@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Tailwind v4: クラスベースのダークモードを有効化 */
+@custom-variant dark (&:is(.dark *));
+
 * {
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
@@ -9,11 +12,45 @@ html, body, #__next {
   height: 100%;
 }
 
+/* ── デザイントークン ──────────────────────────────────────────────────────── */
+:root {
+  --c-bg-app:     #f1f5f9;
+  --c-bg-card:    #ffffff;
+  --c-bg-subtle:  #f8fafc;
+  --c-bg-input:   #f1f5f9;
+  --c-border:     #e2e8f0;
+  --c-text-1:     #0f172a;
+  --c-text-2:     #475569;
+  --c-text-3:     #94a3b8;
+}
+
+.dark {
+  --c-bg-app:     #111318;
+  --c-bg-card:    #1a1d27;
+  --c-bg-subtle:  #1f2235;
+  --c-bg-input:   #252839;
+  --c-border:     rgba(255,255,255,0.07);
+  --c-text-1:     #e2e4f0;
+  --c-text-2:     #8b90a8;
+  --c-text-3:     #575c73;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
-  background: #f1f5f9;
+  background: var(--c-bg-app);
   max-width: 430px;
   margin: 0 auto;
+}
+
+/* ダークモード */
+.dark body {
+  background: var(--c-bg-app);
+  color: #e2e4f0;
+}
+
+/* Drawer のセーフエリア対応 */
+.pb-safe {
+  padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
 }
 
 @keyframes slide-up {
@@ -36,4 +73,7 @@ body {
 .nav-btn:active {
   background-color: rgba(0, 0, 0, 0.04);
   border-radius: 12px;
+}
+.dark .nav-btn:active {
+  background-color: rgba(255, 255, 255, 0.06);
 }

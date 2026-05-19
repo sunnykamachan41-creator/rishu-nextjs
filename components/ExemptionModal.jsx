@@ -204,8 +204,8 @@ export default function ExemptionModal({ courses, exemptions, onExemptionsChange
   return (
     <div className="fixed inset-0 z-50 flex items-end" style={{ maxWidth: 430, margin: '0 auto' }}>
       <div className="absolute inset-0 bg-black/50" onClick={view === 'list' ? onClose : undefined} />
-      <div className="relative w-full bg-white rounded-t-3xl flex flex-col" style={{ maxHeight: '90dvh' }}>
-        <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mt-2.5 flex-shrink-0" />
+      <div className="relative w-full bg-white dark:bg-[#1f2235] rounded-t-3xl flex flex-col" style={{ maxHeight: '90dvh' }}>
+        <div className="w-10 h-1 bg-gray-200 dark:bg-white/10 rounded-full mx-auto mt-2.5 flex-shrink-0" />
 
         {view === 'list' && (
           <ListView
@@ -247,21 +247,21 @@ function ListView({ exemptions, onRemove, onAdd, onClose }) {
   )
   return (
     <>
-      <div className="flex-shrink-0 px-4 pt-2 pb-3 border-b border-gray-100">
+      <div className="flex-shrink-0 px-4 pt-2 pb-3 border-b border-gray-100 dark:border-white/[0.07]">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-base font-bold text-gray-900">単位認定</div>
+            <div className="text-base font-bold text-gray-900 dark:text-slate-100">単位認定</div>
             {totalExemptionCredits > 0 && (
-              <div className="text-xs text-blue-500 mt-0.5">合計 {totalExemptionCredits}単位 認定済み</div>
+              <div className="text-xs text-blue-500 dark:text-blue-400 mt-0.5">合計 {totalExemptionCredits}単位 認定済み</div>
             )}
           </div>
-          <button onClick={onClose} className="text-gray-400 text-xl leading-none p-1">×</button>
+          <button onClick={onClose} className="text-gray-400 dark:text-slate-500 text-xl leading-none p-1">×</button>
         </div>
       </div>
 
       <div className="flex-1 overflow-auto px-3 py-2">
         {exemptions.length === 0 ? (
-          <div className="text-center py-12 text-gray-300">
+          <div className="text-center py-12 text-gray-300 dark:text-slate-600">
             <div className="text-4xl mb-3">📋</div>
             <div className="text-sm font-medium">単位認定がありません</div>
             <div className="text-xs mt-1">外部試験等による認定を追加できます</div>
@@ -270,23 +270,23 @@ function ListView({ exemptions, onRemove, onAdd, onClose }) {
           exemptions.map(ex => {
             const total = Object.values(ex.categoryCredits).reduce((s, v) => s + v, 0)
             return (
-              <div key={ex.id} className="flex items-start gap-2.5 bg-blue-50 rounded-2xl px-3.5 py-3 mb-2">
+              <div key={ex.id} className="flex items-start gap-2.5 bg-blue-50 dark:bg-blue-500/10 rounded-2xl px-3.5 py-3 mb-2">
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-bold text-blue-900">{ex.label}</div>
+                  <div className="text-sm font-bold text-blue-900 dark:text-blue-200">{ex.label}</div>
                   <div className="flex flex-wrap gap-1.5 mt-1.5">
                     {Object.entries(ex.categoryCredits).map(([cat, cred]) => (
                       <span key={cat}
-                        className="text-xs bg-white text-blue-600 border border-blue-200 px-2 py-0.5 rounded-full font-semibold">
+                        className="text-xs bg-white dark:bg-blue-500/20 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-500/30 px-2 py-0.5 rounded-full font-semibold">
                         {CAT_LABELS[cat] || cat}: {cred}単位
                       </span>
                     ))}
                   </div>
-                  <div className="text-xs text-blue-400 mt-1.5">
+                  <div className="text-xs text-blue-400 dark:text-blue-500 mt-1.5">
                     計 {total}単位 · {new Date(ex.addedAt).toLocaleDateString('ja-JP')}
                   </div>
                 </div>
                 <button onClick={() => onRemove(ex.id)}
-                  className="w-7 h-7 flex items-center justify-center rounded-xl text-blue-300 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0">
+                  className="w-7 h-7 flex items-center justify-center rounded-xl text-blue-300 dark:text-blue-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors flex-shrink-0">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
@@ -297,7 +297,7 @@ function ListView({ exemptions, onRemove, onAdd, onClose }) {
         )}
       </div>
 
-      <div className="flex-shrink-0 px-4 py-3 border-t border-gray-100">
+      <div className="flex-shrink-0 px-4 py-3 border-t border-gray-100 dark:border-white/[0.07]">
         <button onClick={onAdd}
           className="w-full py-3 rounded-2xl bg-blue-500 text-white text-sm font-semibold">
           ＋ 単位認定を追加
@@ -311,7 +311,7 @@ function ListView({ exemptions, onRemove, onAdd, onClose }) {
 
 function BackButton({ onClick }) {
   return (
-    <button onClick={onClick} className="text-gray-400 p-1 -ml-1">
+    <button onClick={onClick} className="text-gray-400 dark:text-slate-500 p-1 -ml-1">
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
       </svg>
@@ -324,12 +324,12 @@ function BackButton({ onClick }) {
 function Step1({ selType, onSelect, onNext, onBack }) {
   return (
     <>
-      <div className="flex-shrink-0 px-4 pt-2 pb-3 border-b border-gray-100">
+      <div className="flex-shrink-0 px-4 pt-2 pb-3 border-b border-gray-100 dark:border-white/[0.07]">
         <div className="flex items-center gap-2">
           <BackButton onClick={onBack} />
           <div>
-            <div className="text-base font-bold text-gray-900">認定タイプを選択</div>
-            <div className="text-xs text-gray-400">Step 1 / 3</div>
+            <div className="text-base font-bold text-gray-900 dark:text-slate-100">認定タイプを選択</div>
+            <div className="text-xs text-gray-400 dark:text-slate-500">Step1 / 3</div>
           </div>
         </div>
       </div>
@@ -341,7 +341,7 @@ function Step1({ selType, onSelect, onNext, onBack }) {
           return (
             <button key={type} onClick={() => onSelect(type)}
               className={`w-full text-left rounded-2xl px-4 py-3.5 border-2 transition-all ${
-                selected ? 'border-blue-500 bg-blue-50' : 'border-gray-100 bg-gray-50'
+                selected ? 'border-blue-500 bg-blue-50 dark:bg-blue-500/10' : 'border-gray-100 dark:border-white/[0.07] bg-gray-50 dark:bg-[#252839]'
               }`}
             >
               <div className="flex items-start gap-3">
@@ -351,10 +351,10 @@ function Step1({ selType, onSelect, onNext, onBack }) {
                   {selected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                 </div>
                 <div>
-                  <div className={`text-sm font-bold leading-snug ${selected ? 'text-blue-700' : 'text-gray-800'}`}>
+                  <div className={`text-sm font-bold leading-snug ${selected ? 'text-blue-700 dark:text-blue-300' : 'text-gray-800 dark:text-slate-200'}`}>
                     {def.label}
                   </div>
-                  <div className="text-xs text-gray-400 mt-0.5">{def.description}</div>
+                  <div className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{def.description}</div>
                 </div>
               </div>
             </button>
@@ -362,7 +362,7 @@ function Step1({ selType, onSelect, onNext, onBack }) {
         })}
       </div>
 
-      <div className="flex-shrink-0 px-4 py-3 border-t border-gray-100">
+      <div className="flex-shrink-0 px-4 py-3 border-t border-gray-100 dark:border-white/[0.07]">
         <button onClick={onNext} disabled={!selType}
           className="w-full py-3 rounded-2xl bg-blue-500 text-white text-sm font-semibold disabled:opacity-40">
           次へ
@@ -379,12 +379,12 @@ function Step2({ selType, courses, selLang, onLangSelect,
   const def = EXEMPTION_DEFS[selType]
   return (
     <>
-      <div className="flex-shrink-0 px-4 pt-2 pb-3 border-b border-gray-100">
+      <div className="flex-shrink-0 px-4 pt-2 pb-3 border-b border-gray-100 dark:border-white/[0.07]">
         <div className="flex items-center gap-2">
           <BackButton onClick={onBack} />
           <div>
-            <div className="text-base font-bold text-gray-900">対象授業を選択</div>
-            <div className="text-xs text-gray-400">Step 2 / 3 · {def.label}</div>
+            <div className="text-base font-bold text-gray-900 dark:text-slate-100">対象授業を選択</div>
+            <div className="text-xs text-gray-400 dark:text-slate-500">Step2 / 3 · {def.label}</div>
           </div>
         </div>
       </div>
@@ -431,14 +431,14 @@ function SecondLangPicker({ courses, selLang, onSelect }) {
     <div className="flex flex-col gap-4">
       {/* 言語選択 */}
       <div>
-        <div className="text-xs font-bold text-gray-500 mb-2">言語を選択</div>
+        <div className="text-xs font-bold text-gray-500 dark:text-slate-400 mb-2">言語を選択</div>
         <div className="grid grid-cols-3 gap-2">
           {SECOND_LANG_OPTIONS.map(lang => (
             <button key={lang.key} onClick={() => onSelect(lang.key)}
               className={`py-2.5 rounded-xl text-sm font-semibold transition-colors ${
                 selLang === lang.key
                   ? 'bg-blue-500 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  : 'bg-gray-100 dark:bg-[#252839] text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-[#2a2d3f]'
               }`}
             >
               {lang.label}
@@ -451,22 +451,22 @@ function SecondLangPicker({ courses, selLang, onSelect }) {
       {selLang && previewCourses.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-2">
-            <div className="text-xs font-bold text-gray-500">認定対象（自動選択）</div>
-            <div className="text-xs font-bold text-blue-500">
+            <div className="text-xs font-bold text-gray-500 dark:text-slate-400">認定対象（自動選択）</div>
+            <div className="text-xs font-bold text-blue-500 dark:text-blue-400">
               {Math.min(previewCredits, 4)}単位（上限4単位）
             </div>
           </div>
           <div className="flex flex-col gap-1.5">
             {previewCourses.map(c => (
               <div key={c.class_id ?? c.course_id}
-                className="flex items-center gap-2 bg-blue-50 rounded-xl px-3 py-2">
+                className="flex items-center gap-2 bg-blue-50 dark:bg-blue-500/10 rounded-xl px-3 py-2">
                 <svg className="w-4 h-4 text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                 </svg>
-                <span className="text-xs font-medium text-blue-800 flex-1 truncate">
+                <span className="text-xs font-medium text-blue-800 dark:text-blue-200 flex-1 truncate">
                   {c.course_name}
                 </span>
-                <span className="text-xs text-blue-500 font-bold flex-shrink-0">{c.credits}単位</span>
+                <span className="text-xs text-blue-500 dark:text-blue-400 font-bold flex-shrink-0">{c.credits}単位</span>
               </div>
             ))}
           </div>
@@ -474,12 +474,12 @@ function SecondLangPicker({ courses, selLang, onSelect }) {
       )}
 
       {selLang && previewCourses.length === 0 && (
-        <div className="text-center py-6 bg-gray-50 rounded-2xl text-gray-400">
+        <div className="text-center py-6 bg-gray-50 dark:bg-[#252839] rounded-2xl text-gray-400 dark:text-slate-500">
           <div className="text-2xl mb-1">📭</div>
           <div className="text-sm">
             認定対象の授業がカタログに見つかりません
           </div>
-          <div className="text-xs mt-1 text-gray-300">
+          <div className="text-xs mt-1 text-gray-300 dark:text-slate-600">
             カタログデータを確認してください（CL_SEC タグ必須）
           </div>
         </div>
@@ -535,16 +535,16 @@ function EnglishCoursePicker({ courses, caps, selCourseIds, onCourseIdsChange })
           <div key={cat}>
             {/* カテゴリヘッダー */}
             <div className="flex items-center justify-between mb-2">
-              <div className="text-xs font-bold text-gray-600">{CAT_LABELS[cat] || cat}</div>
+              <div className="text-xs font-bold text-gray-600 dark:text-slate-300">{CAT_LABELS[cat] || cat}</div>
               <div className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
-                full ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                full ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300' : 'bg-gray-100 dark:bg-[#252839] text-gray-500 dark:text-slate-400'
               }`}>
                 {usedCredits} / {cap}単位
               </div>
             </div>
 
             {catCourses.length === 0 ? (
-              <div className="text-xs text-gray-400 text-center py-4 bg-gray-50 rounded-xl">
+              <div className="text-xs text-gray-400 dark:text-slate-500 text-center py-4 bg-gray-50 dark:bg-[#252839] rounded-xl">
                 対象授業がカタログにありません
               </div>
             ) : (
@@ -559,9 +559,9 @@ function EnglishCoursePicker({ courses, caps, selCourseIds, onCourseIdsChange })
                       onClick={() => !wouldExceed && toggleCourse(c, cat)}
                       disabled={wouldExceed}
                       className={`flex items-center gap-3 rounded-xl px-3 py-2.5 border text-left transition-all ${
-                        checked       ? 'bg-blue-50 border-blue-200'
-                        : wouldExceed ? 'bg-gray-50 border-gray-100 opacity-40 cursor-not-allowed'
-                        : 'bg-gray-50 border-gray-100 hover:bg-blue-50 hover:border-blue-200 active:scale-[0.99]'
+                        checked       ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30'
+                        : wouldExceed ? 'bg-gray-50 dark:bg-[#252839] border-gray-100 dark:border-white/[0.07] opacity-40 cursor-not-allowed'
+                        : 'bg-gray-50 dark:bg-[#252839] border-gray-100 dark:border-white/[0.07] hover:bg-blue-50 dark:hover:bg-blue-500/10 hover:border-blue-200 dark:hover:border-blue-500/30 active:scale-[0.99]'
                       }`}
                     >
                       {/* チェックボックス */}
@@ -576,16 +576,16 @@ function EnglishCoursePicker({ courses, caps, selCourseIds, onCourseIdsChange })
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className={`text-xs font-medium truncate ${
-                          checked ? 'text-blue-800' : 'text-gray-700'
+                          checked ? 'text-blue-800 dark:text-blue-200' : 'text-gray-700 dark:text-slate-300'
                         }`}>
                           {c.course_name}
                         </div>
                         {c.intructor && (
-                          <div className="text-xs text-gray-400 truncate">{c.intructor}</div>
+                          <div className="text-xs text-gray-400 dark:text-slate-500 truncate">{c.intructor}</div>
                         )}
                       </div>
                       <span className={`text-xs font-bold flex-shrink-0 ${
-                        checked ? 'text-blue-600' : 'text-gray-400'
+                        checked ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-slate-500'
                       }`}>
                         {c.credits}単位
                       </span>
@@ -611,49 +611,49 @@ function Step3({ selType, selLang, previewCredits, onConfirm, onBack }) {
 
   return (
     <>
-      <div className="flex-shrink-0 px-4 pt-2 pb-3 border-b border-gray-100">
+      <div className="flex-shrink-0 px-4 pt-2 pb-3 border-b border-gray-100 dark:border-white/[0.07]">
         <div className="flex items-center gap-2">
           <BackButton onClick={onBack} />
           <div>
-            <div className="text-base font-bold text-gray-900">認定内容を確認</div>
-            <div className="text-xs text-gray-400">Step 3 / 3</div>
+            <div className="text-base font-bold text-gray-900 dark:text-slate-100">認定内容を確認</div>
+            <div className="text-xs text-gray-400 dark:text-slate-500">Step3 / 3</div>
           </div>
         </div>
       </div>
 
       <div className="flex-1 overflow-auto px-4 py-4 flex flex-col gap-3">
         {/* サマリーカード */}
-        <div className={`rounded-2xl p-4 ${hasCredits ? 'bg-blue-50' : 'bg-gray-50'}`}>
-          <div className={`text-sm font-bold leading-snug ${hasCredits ? 'text-blue-900' : 'text-gray-500'}`}>
+        <div className={`rounded-2xl p-4 ${hasCredits ? 'bg-blue-50 dark:bg-blue-500/10' : 'bg-gray-50 dark:bg-[#252839]'}`}>
+          <div className={`text-sm font-bold leading-snug ${hasCredits ? 'text-blue-900 dark:text-blue-200' : 'text-gray-500 dark:text-slate-400'}`}>
             {langLabel ? `${def.label} (${langLabel})` : def.label}
           </div>
-          <div className={`text-xs mt-1 ${hasCredits ? 'text-blue-600' : 'text-gray-400'}`}>
+          <div className={`text-xs mt-1 ${hasCredits ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-slate-500'}`}>
             {hasCredits ? `${totalCredits}単位が認定されます` : '認定対象の授業が選択されていません'}
           </div>
         </div>
 
         {/* 内訳 */}
         {hasCredits && (
-          <div className="bg-white rounded-2xl border border-gray-100 p-4 flex flex-col gap-3">
-            <div className="text-xs font-bold text-gray-400 uppercase tracking-wide">認定内訳</div>
+          <div className="bg-white dark:bg-[#252839] rounded-2xl border border-gray-100 dark:border-white/[0.07] p-4 flex flex-col gap-3">
+            <div className="text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wide">認定内訳</div>
             {Object.entries(previewCredits).map(([cat, credits]) => (
               <div key={cat} className="flex items-center justify-between">
-                <span className="text-sm text-gray-700">{CAT_LABELS_FULL[cat] || cat}</span>
-                <span className="text-sm font-bold text-blue-600">{credits}単位</span>
+                <span className="text-sm text-gray-700 dark:text-slate-300">{CAT_LABELS_FULL[cat] || cat}</span>
+                <span className="text-sm font-bold text-blue-600 dark:text-blue-400">{credits}単位</span>
               </div>
             ))}
           </div>
         )}
 
-        <div className="text-xs text-gray-300 text-center leading-relaxed">
+        <div className="text-xs text-gray-300 dark:text-slate-600 text-center leading-relaxed">
           ※ 実際の認定は大学事務局での審査が必要です。<br />
           このアプリはシミュレーション用途です。
         </div>
       </div>
 
-      <div className="flex-shrink-0 px-4 py-3 border-t border-gray-100 flex gap-2">
+      <div className="flex-shrink-0 px-4 py-3 border-t border-gray-100 dark:border-white/[0.07] flex gap-2">
         <button onClick={onBack}
-          className="flex-1 py-3 rounded-2xl border border-gray-200 text-sm text-gray-600 font-semibold">
+          className="flex-1 py-3 rounded-2xl border border-gray-200 dark:border-white/[0.07] text-sm text-gray-600 dark:text-slate-300 font-semibold">
           戻る
         </button>
         <button onClick={onConfirm} disabled={!hasCredits}

@@ -118,13 +118,13 @@ export default function FilterDrawer({ open, onClose, filters, onChange, courses
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
 
       {/* ボトムシート */}
-      <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl flex flex-col"
+      <div className="absolute bottom-0 left-0 right-0 bg-white dark:bg-[#1f2235] rounded-t-3xl flex flex-col"
         style={{ maxHeight: '88dvh' }}>
         {/* ハンドル + ヘッダー */}
-        <div className="flex-shrink-0 px-4 pt-2 pb-3 border-b border-gray-100">
-          <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-3" />
+        <div className="flex-shrink-0 px-4 pt-2 pb-3 border-b border-gray-100 dark:border-white/[0.07]">
+          <div className="w-10 h-1 bg-gray-200 dark:bg-white/10 rounded-full mx-auto mb-3" />
           <div className="flex items-center justify-between">
-            <span className="text-base font-bold text-gray-900">絞り込み</span>
+            <span className="text-base font-bold text-gray-900 dark:text-slate-100">絞り込み</span>
             <button
               onClick={() => onChange(DEFAULT_FILTERS)}
               className="text-sm text-blue-500 font-medium">
@@ -144,7 +144,7 @@ export default function FilterDrawer({ open, onClose, filters, onChange, courses
                   className={`flex-1 text-sm py-2 rounded-xl border font-medium transition-colors ${
                     filters.enrolled === o.value
                       ? 'bg-blue-500 text-white border-blue-500'
-                      : 'bg-gray-50 text-gray-600 border-gray-100'
+                      : 'bg-gray-50 dark:bg-[#252839] text-gray-600 dark:text-slate-300 border-gray-100 dark:border-white/[0.07]'
                   }`}>
                   {o.label}
                 </button>
@@ -217,7 +217,7 @@ export default function FilterDrawer({ open, onClose, filters, onChange, courses
         </div>
 
         {/* 閉じるボタン */}
-        <div className="flex-shrink-0 px-4 py-4 border-t border-gray-100">
+        <div className="flex-shrink-0 px-4 py-4 border-t border-gray-100 dark:border-white/[0.07]">
           <button onClick={onClose}
             className="w-full bg-blue-500 text-white py-3 rounded-2xl font-semibold text-sm">
             閉じる
@@ -233,7 +233,7 @@ export default function FilterDrawer({ open, onClose, filters, onChange, courses
 function Section({ title, children }) {
   return (
     <div>
-      <div className="text-xs font-semibold text-gray-500 mb-2">{title}</div>
+      <div className="text-xs font-semibold text-gray-500 dark:text-slate-400 mb-2">{title}</div>
       {children}
     </div>
   )
@@ -247,7 +247,7 @@ function ChipGroup({ options, selected, onToggle }) {
           className={`text-xs px-3 py-1.5 rounded-full font-medium border transition-colors ${
             selected.includes(o.value)
               ? 'bg-blue-500 text-white border-blue-500'
-              : 'bg-gray-50 text-gray-600 border-gray-100'
+              : 'bg-gray-50 dark:bg-[#252839] text-gray-600 dark:text-slate-300 border-gray-100 dark:border-white/[0.07]'
           }`}>
           {o.label}
         </button>
@@ -282,7 +282,7 @@ function RoomFilter({ selected, allRooms, onChange }) {
           className={`text-xs px-3 py-1.5 rounded-full font-medium border transition-colors ${
             selected.includes('別途指示')
               ? 'bg-blue-500 text-white border-blue-500'
-              : 'bg-gray-50 text-gray-600 border-gray-100'
+              : 'bg-gray-50 dark:bg-[#252839] text-gray-600 dark:text-slate-300 border-gray-100 dark:border-white/[0.07]'
           }`}>
           別途指示（時間外）
         </button>
@@ -295,11 +295,11 @@ function RoomFilter({ selected, allRooms, onChange }) {
           value={query}
           onChange={e => setQuery(e.target.value)}
           placeholder="教室名で検索（例: N410）"
-          className="w-full bg-gray-50 rounded-xl px-3 py-2 text-sm border border-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-300"
+          className="w-full bg-gray-50 dark:bg-[#252839] rounded-xl px-3 py-2 text-sm border border-gray-100 dark:border-white/[0.07] text-gray-800 dark:text-slate-200 placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-300"
         />
         {query && (
           <button onClick={() => setQuery('')}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">✕</button>
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500 text-xs">✕</button>
         )}
       </div>
 
@@ -308,7 +308,7 @@ function RoomFilter({ selected, allRooms, onChange }) {
         <div className="flex flex-wrap gap-1.5">
           {suggestions.slice(0, 20).map(r => (
             <button key={r} onClick={() => add(r)}
-              className="text-xs px-3 py-1.5 rounded-full font-medium bg-gray-50 text-gray-600 border border-gray-100">
+              className="text-xs px-3 py-1.5 rounded-full font-medium bg-gray-50 dark:bg-[#252839] text-gray-600 dark:text-slate-300 border border-gray-100 dark:border-white/[0.07]">
               {r}
             </button>
           ))}

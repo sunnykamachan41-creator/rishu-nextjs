@@ -165,17 +165,17 @@ export default function AddCourseModal({
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
 
       {/* ボトムシート */}
-      <div className="relative w-full bg-white rounded-t-3xl flex flex-col"
+      <div className="relative w-full bg-white dark:bg-[#1f2235] rounded-t-3xl flex flex-col"
         style={{ maxHeight: '80dvh' }}>
 
         {/* ── ハンドル + ヘッダー ──────────────────────────────────────────── */}
-        <div className="flex-shrink-0 px-4 pt-2 pb-3 border-b border-gray-100">
-          <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-3" />
+        <div className="flex-shrink-0 px-4 pt-2 pb-3 border-b border-gray-100 dark:border-white/[0.07]">
+          <div className="w-10 h-1 bg-gray-200 dark:bg-white/10 rounded-full mx-auto mb-3" />
 
           <div className="flex items-start justify-between">
             <div>
-              <div className="text-base font-bold text-gray-900">授業を追加</div>
-              <div className="text-xs text-gray-400 mt-0.5">
+              <div className="text-base font-bold text-gray-900 dark:text-slate-100">授業を追加</div>
+              <div className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
                 {DAY_LBL[day]}曜 {period}限 · {grade}年生{semLabel}
                 {lockedLabel && (
                   <span className={`ml-1.5 font-semibold ${
@@ -188,19 +188,19 @@ export default function AddCourseModal({
 
               {/* 空セルクリック時の説明 */}
               {lockedTerm == null && (
-                <div className="text-xs text-gray-300 mt-1">
+                <div className="text-xs text-gray-300 dark:text-slate-600 mt-1">
                   通常授業はセル全体・ターム授業は自動で上下分割されます
                 </div>
               )}
             </div>
-            <button onClick={onClose} className="text-gray-400 text-xl leading-none p-1">×</button>
+            <button onClick={onClose} className="text-gray-400 dark:text-slate-500 text-xl leading-none p-1">×</button>
           </div>
         </div>
 
         {/* ── 検索バー ─────────────────────────────────────────────────────── */}
-        <div className="flex-shrink-0 px-4 py-2 border-b border-gray-50">
+        <div className="flex-shrink-0 px-4 py-2 border-b border-gray-50 dark:border-white/[0.07]">
           <div className="relative">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-slate-500"
               fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                 d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -209,13 +209,14 @@ export default function AddCourseModal({
               type="text" value={query} onChange={e => setQuery(e.target.value)}
               placeholder="授業名・担当者で検索"
               autoFocus
-              className="w-full bg-gray-50 rounded-xl pl-9 pr-8 py-2 text-sm
-                         border border-gray-100
+              className="w-full bg-gray-50 dark:bg-[#252839] rounded-xl pl-9 pr-8 py-2 text-sm
+                         border border-gray-100 dark:border-white/[0.07]
+                         text-gray-800 dark:text-slate-200 placeholder:text-gray-400 dark:placeholder:text-slate-500
                          focus:outline-none focus:ring-2 focus:ring-blue-300"
             />
             {query && (
               <button onClick={() => setQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500 text-xs">
                 ✕
               </button>
             )}
@@ -227,18 +228,18 @@ export default function AddCourseModal({
 
           {/* 空状態 */}
           {filtered.length === 0 && !query && (
-            <div className="text-center py-8 text-gray-400">
+            <div className="text-center py-8 text-gray-400 dark:text-slate-500">
               <div className="text-2xl mb-2">📭</div>
               <div className="text-sm">
                 {lockedLabel
                   ? `${lockedLabel}の授業がこの時間枠にありません`
                   : 'この時間枠の授業がカタログにありません'}
               </div>
-              <div className="text-xs mt-1 text-gray-300">手動入力で追加できます</div>
+              <div className="text-xs mt-1 text-gray-300 dark:text-slate-600">手動入力で追加できます</div>
             </div>
           )}
           {filtered.length === 0 && query && (
-            <div className="text-center py-8 text-sm text-gray-400">
+            <div className="text-center py-8 text-sm text-gray-400 dark:text-slate-500">
               「{query}」に一致する授業が見つかりません
             </div>
           )}
@@ -253,44 +254,44 @@ export default function AddCourseModal({
               <button key={c.class_id}
                 onClick={() => setPreview(c)}
                 className="w-full text-left rounded-xl px-3 py-2.5 mb-1.5 border
-                           bg-gray-50 border-gray-100
-                           hover:bg-blue-50 hover:border-blue-200
+                           bg-gray-50 dark:bg-[#252839] border-gray-100 dark:border-white/[0.07]
+                           hover:bg-blue-50 dark:hover:bg-blue-500/10 hover:border-blue-200 dark:hover:border-blue-500/30
                            active:scale-[0.99] transition-all"
               >
                 <div className="flex items-center gap-2">
                   <div className="flex-1 min-w-0">
                     {/* 授業名 */}
-                    <div className="text-sm font-semibold text-gray-900 truncate">
+                    <div className="text-sm font-semibold text-gray-900 dark:text-slate-100 truncate">
                       {c.course_name}
                     </div>
                     {/* 備考 */}
                     {c.note && (
-                      <div className="text-xs text-amber-700 mt-0.5 truncate opacity-80">📝 {c.note}</div>
+                      <div className="text-xs text-amber-700 dark:text-amber-400 mt-0.5 truncate opacity-80">📝 {c.note}</div>
                     )}
                     {/* メタ情報 */}
-                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                    <div className="flex items-center gap-1.5 mt.0.5 flex-wrap">
                       {/* ターム or 通常バッジ */}
                       {isTerm ? (
                         <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
                           isOdd
-                            ? 'bg-blue-50 text-blue-600'
-                            : 'bg-violet-50 text-violet-600'
+                            ? 'bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300'
+                            : 'bg-violet-50 dark:bg-violet-500/20 text-violet-600 dark:text-violet-300'
                         }`}>
                           {c.term}
                         </span>
                       ) : (
                         <span className="text-xs px-1.5 py-0.5 rounded-full font-medium
-                                         bg-indigo-50 text-indigo-500">
+                                         bg-indigo-50 dark:bg-indigo-500/20 text-indigo-500 dark:text-indigo-300">
                           通常授業
                         </span>
                       )}
                       {/* 教室 */}
                       {c.room && (
-                        <span className="text-xs text-gray-400 truncate">{c.room}</span>
+                        <span className="text-xs text-gray-400 dark:text-slate-500 truncate">{c.room}</span>
                       )}
                       {/* 担当者 */}
                       {c.intructor && (
-                        <span className="text-xs text-gray-400 truncate">{c.intructor}</span>
+                        <span className="text-xs text-gray-400 dark:text-slate-500 truncate">{c.intructor}</span>
                       )}
                     </div>
                   </div>
@@ -301,7 +302,7 @@ export default function AddCourseModal({
           })}
 
           {/* ── 手動入力 ──────────────────────────────────────────────────── */}
-          <div className="mt-2 pt-2 border-t border-gray-100">
+          <div className="mt-2 pt-2 border-t border-gray-100 dark:border-white/[0.07]">
             {customMode ? (
               <div className="flex gap-2">
                 <input
@@ -309,7 +310,8 @@ export default function AddCourseModal({
                   onChange={e => setCustomTitle(e.target.value)}
                   placeholder="授業名を入力…"
                   onKeyDown={e => e.key === 'Enter' && handleCustomAdd()}
-                  className="flex-1 bg-gray-50 rounded-xl px-3 py-2 text-sm border border-gray-100
+                  className="flex-1 bg-gray-50 dark:bg-[#252839] rounded-xl px-3 py-2 text-sm border border-gray-100 dark:border-white/[0.07]
+                             text-gray-800 dark:text-slate-200 placeholder:text-gray-400 dark:placeholder:text-slate-500
                              focus:outline-none focus:ring-2 focus:ring-blue-300"
                 />
                 <button onClick={handleCustomAdd}
@@ -317,7 +319,7 @@ export default function AddCourseModal({
                   追加
                 </button>
                 <button onClick={() => { setCustomMode(false); setCustomTitle('') }}
-                  className="text-gray-400 px-2 text-sm">✕</button>
+                  className="text-gray-400 dark:text-slate-500 px-2 text-sm">✕</button>
               </div>
             ) : (
               <button onClick={() => setCustomMode(true)}
