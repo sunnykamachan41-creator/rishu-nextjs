@@ -8,11 +8,14 @@
     "start": "next start"
   },
   "dependencies": {
+    "@types/react-window": "^1.8.8",
     "googleapis": "^171.4.0",
     "next": "16.2.6",
     "next-auth": "^4.24.14",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "react-virtualized-auto-sizer": "^2.0.3",
+    "react-window": "^1.8.10",
     "swr": "^2.4.1",
     "zustand": "^5.0.13"
   },
