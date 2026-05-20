@@ -425,7 +425,9 @@ export default function TimetableV2({
   const handleAdd = useCallback((data) => {
     if (data.classId) {
       // composite key で重複チェック（異年度の同 class_id を区別）
+      // 年度一致優先、なければ任意年度で探す（カタログが古い年度のみの場合に対応）
       const addedCourse = courses?.find(c => c.class_id === data.classId && (academicYear == null || c.academic_year === academicYear))
+                       ?? courses?.find(c => c.class_id === data.classId)
       const ck = `${data.classId}|${addedCourse?.academic_year ?? ''}`
       const alreadySelected = selectedIds?.includes(ck)
       if (onToggleEnrollment && !alreadySelected) {
@@ -550,17 +552,17 @@ export default function TimetableV2({
 
   // 年度チェック付きモーダル開閉
   // academic_year が設定された授業が存在し、かつ現在の academicYear と一致するものが
-  // ひとつもない場合は選択画面を開かずに警告トーストを表示する。
+  // ひとつもない場合は警告トーストを表示するが、モーダルは開く。
+  // （カタログが古い年度のみの場合でも登録できるようにするため）
   const openModal = useCallback((day, period, lockedTerm) => {
     if (academicYear != null) {
       const coursesWithAY = (courses ?? []).filter(c => c.academic_year != null)
       const hasMatch = coursesWithAY.some(c => c.academic_year === academicYear)
       if (coursesWithAY.length > 0 && !hasMatch) {
-        // 年度ミスマッチ → 警告トーストを表示してモーダルを開かない
+        // 年度ミスマッチ → 警告トーストを表示（ただしモーダルは開く）
         setYearWarnVisible(true)
         if (yearWarnTimer.current) clearTimeout(yearWarnTimer.current)
         yearWarnTimer.current = setTimeout(() => setYearWarnVisible(false), 3500)
-        return
       }
     }
     setAddModal({ day, period, lockedTerm })

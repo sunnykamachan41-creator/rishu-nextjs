@@ -4,7 +4,6 @@ import useSWR from 'swr'
 import { useSession, signIn } from 'next-auth/react'
 import TimetableV2 from '@/components/TimetableV2'
 import CourseList from '@/components/CourseList'
-import Requirements from '@/components/Requirements'
 import GraduationTabV2 from '@/components/GraduationTabV2'
 import Dashboard from '@/components/Dashboard'
 import EmptyRooms from '@/components/EmptyRooms'
@@ -35,74 +34,6 @@ const fetcher = url => fetch(url).then(r => {
 // ── Term helpers ──────────────────────────────────────────────────────────────
 // Eligibility rules (grade + semester) live in lib/eligibility.ts.
 // termToSemKey / isCourseEligible are imported from there.
-
-// ── Exemption → Requirements 補正 ────────────────────────────────────────────
-/**
- * サーバー計算済みの requirements に exemption 単位を上乗せして再評価する。
- *
- * compute.js はサーバー側で selectedIds のみを参照するため exemption を知らない。
- * 各 requirement の source_groups タグに対応する exemption クレジットを earned に
- * 加算し、status / shortage を再計算する。
- */
-function applyExemptionsToRequirements(requirements, exemptions) {
-  if (!exemptions?.length || !requirements?.length) return requirements ?? []
-
-  // exemption クレジットをタグ別に集計
-  const bonusByTag = {}
-  for (const ex of exemptions) {
-    for (const [cat, credits] of Object.entries(ex.categoryCredits)) {
-      bonusByTag[cat] = (bonusByTag[cat] || 0) + credits
-    }
-  }
-
-  return requirements.map(req => {
-    const groups = req.source_groups
-      ? String(req.source_groups).split(';').map(s => s.trim()).filter(Boolean)
-      : []
-
-    const bonus = groups.reduce((sum, g) => sum + (bonusByTag[g] || 0), 0)
-    if (bonus === 0) return req
-
-    const newEarned = (Number(req.earned_units) || 0) + bonus
-
-    // FIXED / info / optional → ステータスは変えず earned_units だけ更新
-    if (req.status === 'info' || req.status === 'optional') {
-      return { ...req, earned_units: newEarned }
-    }
-
-    // MIN / SUM / SELECT_ONE → earned_units + status / shortage を再計算
-    const need        = Number(req.min_units) || 0
-    const newShortage = Math.max(0, need - newEarned)
-
-    return {
-      ...req,
-      earned_units: newEarned,
-      shortage:     newShortage,
-      status:       newShortage === 0 ? 'ok' : 'short',
-    }
-  })
-}
-
-// ── Degree helpers ────────────────────────────────────────────────────────────
-
-const FIXED_DEGREES    = new Set(['COMMON', 'ELE'])
-const OPTIONAL_DEGREES = ['HIENG', 'KIND', 'LIB']
-const DEGREE_LABELS = {
-  COMMON: '英語科共通必修',
-  ELE:    '小学校免許必修',
-  HIENG:  '中高英語免許取得',
-  KIND:   '幼稚園免許取得',
-  LIB:    '司書教諭取得',
-}
-
-function loadActiveDegrees() {
-  if (typeof window === 'undefined') return new Set(['COMMON', 'ELE'])
-  try {
-    const saved = localStorage.getItem('rishu_active_degrees')
-    if (saved) return new Set(JSON.parse(saved))
-  } catch {}
-  return new Set(['COMMON', 'ELE'])
-}
 
 // ── Tab config ────────────────────────────────────────────────────────────────
 
@@ -258,7 +189,6 @@ export default function Page() {
   const [exemptions,      setExemptions]      = useState(loadExemptions)
   const [exemptionOpen,   setExemptionOpen]   = useState(false)
 
-  const [activeDegrees, setActiveDegrees] = useState(loadActiveDegrees)
   const [courseFilters, setCourseFilters] = useState(DEFAULT_FILTERS)
   const [courseQuery,   setCourseQuery]   = useState('')
 
@@ -266,17 +196,6 @@ export default function Page() {
     setIncludeProjected(prev => {
       const next = !prev
       try { localStorage.setItem('rishu_include_projected', next ? '1' : '0') } catch {}
-      return next
-    })
-  }, [])
-
-  const toggleDegree = useCallback((degree) => {
-    if (FIXED_DEGREES.has(degree)) return
-    setActiveDegrees(prev => {
-      const next = new Set(prev)
-      if (next.has(degree)) next.delete(degree)
-      else next.add(degree)
-      try { localStorage.setItem('rishu_active_degrees', JSON.stringify([...next])) } catch {}
       return next
     })
   }, [])
@@ -593,32 +512,6 @@ export default function Page() {
     exemptions,             // enrollment とは別管理。集計時のみ統合
   })
 
-  // ── 卒業要件への exemption 補正 ──────────────────────────────────────────────
-  // 「取得予定を含む」モード時は projectedRequirements を基準とする
-  const baseRequirements = useMemo(
-    () => includeProjected
-      ? (data?.projectedRequirements ?? data?.requirements ?? [])
-      : (data?.requirements ?? []),
-    [includeProjected, data?.projectedRequirements, data?.requirements],
-  )
-  const adjustedRequirements = useMemo(
-    () => applyExemptionsToRequirements(baseRequirements, exemptions),
-    [baseRequirements, exemptions],
-  )
-
-  // ── 学年間重複検知 ────────────────────────────────────────────────────────────
-  // 同一 courseId が複数学年のエントリに登録されている場合を重複とみなす
-  const duplicateCourseIds = useMemo(() => {
-    if (!creditSummary) return []
-    const gradeMap = {}
-    for (const c of creditSummary.completedCourses) {
-      if (!c.courseId || !c.grade) continue
-      if (!gradeMap[c.courseId]) gradeMap[c.courseId] = new Set()
-      gradeMap[c.courseId].add(c.grade)
-    }
-    return Object.keys(gradeMap).filter(id => gradeMap[id].size > 1)
-  }, [creditSummary])
-
   // ── Render states ─────────────────────────────────────────────────────────
 
   // ── セッション確認中 ────────────────────────────────────────────────────
@@ -691,22 +584,6 @@ export default function Page() {
   // New-schema fields (gracefully absent in legacy mode)
   // statusMap は上の useMemo で構築済み（Rules of Hooks のため早期 return の前に置いてある）
   const enrollmentVersion = data.enrollmentVersion ?? 'legacy'
-
-  // active な degree の requirement のみ対象にする（exemption 補正済み）
-  const filteredRequirements = adjustedRequirements.filter(r =>
-    !r.degree || activeDegrees.has(r.degree)
-  )
-
-  const duplicateCount = duplicateCourseIds.length
-  // FIXED requirements: server always returns status='info'; derive shortage client-side
-  const shortCount = filteredRequirements.filter(r => {
-    if (r.condition_type === 'FIXED') {
-      const earned = Number(r.earned_units) || 0
-      const need   = Number(r.fixed_units)  || 0
-      return need > 0 && earned < need
-    }
-    return r.status === 'short'
-  }).length
 
   // ── Main layout ────────────────────────────────────────────────────────────
 

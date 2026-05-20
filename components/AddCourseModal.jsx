@@ -47,9 +47,18 @@ function filterEligible(courses, grade, semester) {
   return courses.filter(c => isCourseEligible(c, grade, semester))
 }
 
-/** 開講年度でフィルタ（academicYear が null なら全件通す）。 */
+/**
+ * 開講年度でフィルタ。
+ *
+ * - academicYear が null → 全件通す
+ * - カタログに academicYear と一致するコースが 1 件以上ある → 一致 + 年度未設定を返す
+ * - 一致するコースが 0 件（カタログが別年度のみ）→ 全件通す
+ *   （古いカタログでも登録できるようにするため）
+ */
 function filterByAcademicYear(courses, academicYear) {
   if (academicYear == null) return courses
+  const hasExactMatch = courses.some(c => c.academic_year === academicYear)
+  if (!hasExactMatch) return courses   // 年度不一致 → 全件フォールバック
   return courses.filter(c => c.academic_year == null || c.academic_year === academicYear)
 }
 

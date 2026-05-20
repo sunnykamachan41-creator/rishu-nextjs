@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { fetchAllSheets } from '@/lib/sheets'
-import { detectConflicts, computeRequirements, computeSummary } from '@/lib/compute'
+import { detectConflicts, computeSummary } from '@/lib/compute'
 import { buildEnrollmentMapsWithCourses, normalizeCourse, normalizeId } from '@/lib/transform'
 
 export const dynamic = 'force-dynamic'
@@ -18,7 +18,6 @@ export async function GET() {
 
     const {
       courses: rawCourses,
-      requirements,
       normalizedEnrollment,
       enrollmentVersion,
       studentsSummary,
@@ -50,29 +49,25 @@ export async function GET() {
         .map(e => `${e.class_id}|${e.academic_year ?? ''}`)
     )
 
-    const conflicts      = detectConflicts(courses, selectedIds)
-    const computedReqs   = computeRequirements(courses, completedIds, requirements)
-    const projectedReqs  = computeRequirements(courses, projectedIds, requirements)
+    const conflicts                    = detectConflicts(courses, selectedIds)
     const { totalCredits, safeCredits } = computeSummary(courses, completedIds, conflicts)
 
     return NextResponse.json({
       courses,
-      requirements:          computedReqs,
-      selectedIds:           [...selectedIds],
-      conflicts:             [...conflicts],
+      selectedIds:        [...selectedIds],
+      conflicts:          [...conflicts],
       totalCredits,
       safeCredits,
-      enrollment:            normalizedEnrollment,
-      statusMap:             Object.fromEntries(statusMap),
-      enrolledByGradeSem:    Object.fromEntries(enrolledByGradeSem),
+      enrollment:         normalizedEnrollment,
+      statusMap:          Object.fromEntries(statusMap),
+      enrolledByGradeSem: Object.fromEntries(enrolledByGradeSem),
       enrollmentVersion,
-      studentsSummary:       studentsSummary ?? null,
-      completedIds:          [...completedIds],
-      projectedIds:          [...projectedIds],
-      projectedRequirements: projectedReqs,
+      studentsSummary:    studentsSummary ?? null,
+      completedIds:       [...completedIds],
+      projectedIds:       [...projectedIds],
       departments,
-      userDepartment:        userDepartment || null,
-      userCurriculumYear:    userCurriculumYear ?? null,
+      userDepartment:     userDepartment || null,
+      userCurriculumYear: userCurriculumYear ?? null,
       studentId,
     })
   } catch (err) {
