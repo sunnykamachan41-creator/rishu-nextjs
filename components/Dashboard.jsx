@@ -79,6 +79,25 @@ function ProjectedBadge({ active, onToggle }) {
   )
 }
 
+// ── 「仮登録を含む」トグル ────────────────────────────────────────────────────
+
+function TemporaryBadge({ active, onToggle }) {
+  return (
+    <button
+      onClick={onToggle}
+      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold
+                  border transition-all ${
+        active
+          ? 'bg-amber-500 text-white border-amber-500'
+          : 'bg-white dark:bg-[#1a1d27] text-gray-500 dark:text-slate-400 border-gray-200 dark:border-white/[0.07] hover:border-amber-300'
+      }`}
+    >
+      <span className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-white' : 'bg-gray-300'}`} />
+      仮登録を含む
+    </button>
+  )
+}
+
 // ── メインコンポーネント ───────────────────────────────────────────────────────
 
 export default function Dashboard({
@@ -88,12 +107,18 @@ export default function Dashboard({
   creditSummary,
   includeProjected = false,
   onToggleProjected,
+  includeTemporary = false,
+  onToggleTemporary,
 }) {
   const [chartMode, setChartMode] = useState('all')
 
   // ── 卒業進捗 (graduation/ui) ─────────────────────────────────────────────
   // サーバー側でセッションから user を特定するため student_id は不要
-  const gradKey = `/api/graduation/ui${includeProjected ? '?include_projected=1' : ''}`
+  const gradParams = new URLSearchParams()
+  if (includeProjected) gradParams.set('include_projected', '1')
+  if (includeTemporary) gradParams.set('include_temporary', '1')
+  const gradParamStr = gradParams.toString()
+  const gradKey = `/api/graduation/ui${gradParamStr ? `?${gradParamStr}` : ''}`
   const { data: gradData, isLoading: gradLoading } = useSWR(gradKey, fetcher, {
     revalidateOnFocus: false,
   })
@@ -194,20 +219,35 @@ export default function Dashboard({
   return (
     <div className="flex-1 overflow-auto pb-8">
 
-      {/* 「履修予定を含む」トグル */}
-      {onToggleProjected && (
-        <div className="px-3 pt-3 flex justify-end">
-          <ProjectedBadge active={includeProjected} onToggle={onToggleProjected} />
+      {/* 「履修予定を含む」「仮登録を含む」トグル */}
+      {(onToggleProjected || onToggleTemporary) && (
+        <div className="px-3 pt-3 flex justify-end gap-2 flex-wrap">
+          {onToggleProjected && (
+            <ProjectedBadge active={includeProjected} onToggle={onToggleProjected} />
+          )}
+          {onToggleTemporary && (
+            <TemporaryBadge active={includeTemporary} onToggle={onToggleTemporary} />
+          )}
         </div>
       )}
 
       {/* ① 卒業進捗リング ─────────────────────────────────────────────────── */}
-      <div className={`px-3 ${onToggleProjected ? 'pt-2' : 'pt-3'}`}>
+      <div className={`px-3 ${(onToggleProjected || onToggleTemporary) ? 'pt-2' : 'pt-3'}`}>
         <div className="bg-white dark:bg-[#1a1d27] rounded-3xl shadow-sm dark:shadow-none px-5 py-5">
-          {includeProjected && (
-            <div className="mb-3 text-[11px] text-blue-500 dark:text-blue-400 font-medium bg-blue-50 dark:bg-blue-500/10
-                            rounded-xl px-3 py-1.5 inline-block">
-              履修予定・履修中を含めて計算中
+          {(includeProjected || includeTemporary) && (
+            <div className="mb-3 flex flex-wrap gap-2">
+              {includeProjected && (
+                <div className="text-[11px] text-blue-500 dark:text-blue-400 font-medium bg-blue-50 dark:bg-blue-500/10
+                                rounded-xl px-3 py-1.5 inline-block">
+                  履修予定・履修中を含めて計算中
+                </div>
+              )}
+              {includeTemporary && (
+                <div className="text-[11px] text-amber-600 dark:text-amber-400 font-medium bg-amber-50 dark:bg-amber-500/10
+                                rounded-xl px-3 py-1.5 inline-block">
+                  仮登録を含めて計算中
+                </div>
+              )}
             </div>
           )}
           <div className="text-xs font-semibold text-gray-400 dark:text-slate-500 mb-4">卒業進捗</div>

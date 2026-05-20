@@ -47,7 +47,9 @@ export default function OnboardingModal({ departments = [], onSelect, onCancel }
     setSaving(true)
     setError('')
     try {
-      await onSelect(deptId ?? selectedDept, year ?? selectedYear)
+      // 学科変更モード（isChanging）では year=null で呼ばれる。
+      // その場合は null をそのまま渡し、親側で既存の enrollmentYear を使う。
+      await onSelect(deptId ?? selectedDept, year !== undefined ? year : selectedYear)
     } catch {
       setError('保存に失敗しました。もう一度お試しください。')
       setSaving(false)

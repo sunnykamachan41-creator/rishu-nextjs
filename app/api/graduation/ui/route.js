@@ -58,6 +58,7 @@ export async function GET(request) {
 
     const { searchParams } = new URL(request.url)
     const includeProjected = searchParams.get('include_projected') === '1'
+    const includeTemporary = searchParams.get('include_temporary') === '1'
 
     const [uiRows, ruleRows, studentRows, categoryFormulaRows, progressRows, sheetsData] = await Promise.all([
       fetchGraduationUIAll(),
@@ -78,6 +79,17 @@ export async function GET(request) {
     // ── Build credit map for current student ────────────────────────────────
     // 通常: students_summary の行を直接参照
     // includeProjected: progress_auto の COMPLETED + IN_PROGRESS + PLANNED を集計
+    // includeTemporary: 仮登録（is_temporary=TRUE）のコースを students_summary に加算
+
+    // 仮登録 class_id セット（include_temporary が有効なときのみ構築）
+    const temporaryClassIds = includeTemporary
+      ? new Set(
+          (sheetsData.normalizedEnrollment ?? [])
+            .filter(e => e.is_temporary)
+            .map(e => String(e.class_id ?? '').trim())
+        )
+      : new Set()
+
     const creditMap = new Map()
 
     if (includeProjected) {
@@ -100,6 +112,19 @@ export async function GET(request) {
         }
       } else {
         console.warn('[GET /api/graduation/ui] student not found in students_summary:', studentId)
+      }
+
+      // 仮登録を含む: 仮登録コースの単位を students_summary ベースに加算
+      if (includeTemporary && temporaryClassIds.size > 0) {
+        for (const row of progressRows) {
+          const classId = String(row.class_id ?? '').trim()
+          if (!temporaryClassIds.has(classId)) continue
+          const status = String(row.status ?? '').trim().toUpperCase()
+          if (!['COMPLETED', 'IN_PROGRESS', 'PLANNED'].includes(status)) continue
+          const cat = normCat(row.final_category ?? '')
+          if (!cat) continue
+          creditMap.set(cat, (creditMap.get(cat) || 0) + (Number(row.credits) || 0))
+        }
       }
     }
 

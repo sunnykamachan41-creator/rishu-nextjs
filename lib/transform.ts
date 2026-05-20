@@ -34,6 +34,8 @@ export interface NormalizedCourse {
   tags:         string
   year: string              // grade restriction (e.g. "1", "2", "")
   academic_year: number | null  // calendar year the course is offered (e.g. 2025)
+  start_year: number | null     // first year the course is available (range format)
+  end_year:   number | null     // last year the course is available (range format)
   class: string
   intructor: string
   note: string
@@ -56,6 +58,22 @@ export interface NormalizedEnrollment {
   status: EnrollmentStatus
   /** Calendar year the course was offered (e.g. 2025). Used for course JOIN in progress_auto. */
   academic_year: number | null
+  /** 仮登録フラグ: academic_year が現実世界の現在年度より未来の場合 true。
+   *  TRUE の場合は卒業要件・単位集計から除外される（「仮登録を含む」モード時は加算）。 */
+  is_temporary: boolean
+}
+
+/**
+ * A normalised recognized_courses record.
+ * course_id is the primary key (no class_id — recognition is course-level).
+ */
+export interface NormalizedRecognizedCourse {
+  student_id: string
+  course_id: string
+  academic_year: number | null
+  recognized_type: string | null
+  recognized_note: string | null
+  created_at: string | null
 }
 
 /** Result of buildEnrollmentMaps */
@@ -147,10 +165,21 @@ export function normalizeCourse(row: Record<string, string>): NormalizedCourse {
   const ayNum   = rawAY ? parseInt(rawAY, 10) : NaN
   const academic_year = Number.isFinite(ayNum) ? ayNum : null
 
+  // start_year / end_year: year range for courses offered across multiple years.
+  // When present, /api/data expands the course into one copy per year in [start_year, end_year].
+  const rawSY    = row.start_year || ''
+  const syNum    = rawSY ? parseInt(rawSY, 10) : NaN
+  const start_year = Number.isFinite(syNum) ? syNum : null
+
+  const rawEY    = row.end_year || ''
+  const eyNum    = rawEY ? parseInt(rawEY, 10) : NaN
+  const end_year   = Number.isFinite(eyNum) ? eyNum : null
+
   const KNOWN_KEYS = new Set([
     'class_id','course_id','course_name','credits','term','term_code',
     'normalized_time','day_time','room','raw_category','category',
-    'sub_category','tags','year','academic_year','class','intructor','instructor','note',
+    'sub_category','tags','year','academic_year','start_year','end_year',
+    'class','intructor','instructor','note',
   ])
 
   return {
@@ -168,6 +197,8 @@ export function normalizeCourse(row: Record<string, string>): NormalizedCourse {
     tags:            (row.tags || '').trim(),
     year:            normalizeYearString(row.year),
     academic_year,
+    start_year,
+    end_year,
     class:           (row.class || '').trim(),
     intructor:       (row.intructor || row.instructor || '').trim(),
     note:            (row.note || '').trim(),
@@ -210,6 +241,9 @@ export function normalizeEnrollmentRow(
     const rawAY = row.academic_year || ''
     const ayNum = rawAY ? parseInt(rawAY, 10) : NaN
 
+    const rawTemp    = (row.is_temporary || '').trim().toUpperCase()
+    const is_temporary = rawTemp === 'TRUE' || rawTemp === '1'
+
     return {
       class_id:      classId,
       course_id:     courseId,
@@ -217,6 +251,7 @@ export function normalizeEnrollmentRow(
       semester:      normalizeSemester(row.semester),
       status,
       academic_year: Number.isFinite(ayNum) ? ayNum : null,
+      is_temporary,
     }
   } else {
     // Legacy: class_id + selected
@@ -234,6 +269,7 @@ export function normalizeEnrollmentRow(
       semester:      null,
       status:        'COMPLETED',
       academic_year: null,
+      is_temporary:  false,
     }
   }
 }

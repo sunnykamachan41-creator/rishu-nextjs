@@ -19,14 +19,14 @@ export type ExemptionType =
   | 'CL_ENGLISH_600'        // TOEIC 600 / 英検 二級
 
 export interface Exemption {
-  id:              string
-  exemptionType:   ExemptionType
-  language?:       string                    // CL_SECOND_LANG_SKIP のみ（言語キー）
-  appliedCourseIds: string[]                 // 認定対象の courseId 一覧
-  /** カテゴリ → 認定単位数。useCreditSummary で creditsByCategory に加算する */
-  categoryCredits: Record<string, number>
-  label:           string                    // 表示用ラベル
-  addedAt:         string                    // ISO 日時文字列
+  id:               string
+  exemptionType:    ExemptionType
+  language?:        string                    // CL_SECOND_LANG_SKIP のみ（言語キー）
+  appliedCourseIds: string[]                  // 認定対象の courseId 一覧（recognized_courses 削除時に使用）
+  /** カテゴリ → 認定単位数。表示専用（単位計算はサーバー側 recognized_courses 経由） */
+  categoryCredits:  Record<string, number>
+  label:            string                    // 表示用ラベル
+  addedAt:          string                    // ISO 日時文字列
 }
 
 export interface ExemptionDef {

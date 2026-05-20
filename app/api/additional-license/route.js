@@ -454,9 +454,10 @@ export async function POST(request) {
       fetchAdditionalLicenseRulesAll(),
     ])
 
-    const departmentId = normKey(sheetsData.userDepartment || '')
+    const departmentId   = normKey(sheetsData.userDepartment || '')
+    const curriculumYear = sheetsData.userCurriculumYear ?? null
     console.log('[additional-license POST] student_id:', studentId,
-                '| department_id:', departmentId)
+                '| department_id:', departmentId, '| curriculumYear:', curriculumYear)
 
     // creditMap from students_summary
     const creditMap = new Map()
@@ -471,9 +472,12 @@ export async function POST(request) {
       console.warn('[additional-license POST] ⚠ student not found in students_summary:', studentId)
     }
 
-    const lid      = normKey(license_id)
-    const licRules = ruleRows.filter(r => getRuleLid(r) === lid)
-    console.log('[additional-license POST] rules for license:', licRules.length)
+    const lid              = normKey(license_id)
+    const filteredRuleRows = filterRulesByYear(ruleRows, curriculumYear)
+    const licRules         = filteredRuleRows.filter(r => getRuleLid(r) === lid)
+    console.log('[additional-license POST] ruleRows:', ruleRows.length,
+                '→ filteredRuleRows:', filteredRuleRows.length,
+                '→ licRules for', lid, ':', licRules.length)
 
     let allPass        = licRules.length > 0
     let totalEarned    = 0

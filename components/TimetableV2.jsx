@@ -80,7 +80,8 @@ function termColor(term) {
  * @returns {Entry[]}
  */
 function deriveCatalogEntries(
-  courses, selectedIds, enrollment, enrollmentVersion, grade, semester, semesterTerms
+  courses, selectedIds, enrollment, enrollmentVersion, grade, semester, semesterTerms,
+  temporaryIds = new Set()
 ) {
   if (!courses?.length || !selectedIds?.length) return []
 
@@ -105,13 +106,15 @@ function deriveCatalogEntries(
 
   for (const c of courses) {
     // composite key でマッチ（年度を含めることで異年度の同 class_id を区別）
-    if (!activeSet.has(`${c.class_id}|${c.academic_year ?? ''}`)) continue
+    const ck = `${c.class_id}|${c.academic_year ?? ''}`
+    if (!activeSet.has(ck)) continue
     if (!semesterTerms.includes(c.term)) continue
 
     const nt = c.normalized_time
     if (!nt || nt === 'EXTRA' || nt === '0') continue   // 時間外は別セクション
 
-    const termNum = TERM_TO_NUM[c.term] ?? null
+    const termNum   = TERM_TO_NUM[c.term] ?? null
+    const isTemp    = temporaryIds.has(ck)
 
     for (const slot of String(nt).split('|')) {
       const m = slot.trim().match(/^(MON|TUE|WED|THU|FRI)_(\d)$/)
@@ -126,6 +129,7 @@ function deriveCatalogEntries(
         academicYear: c.academic_year,   // 削除時の composite key 構築用
         room:         c.room || null,
         _catalog:     true,   // 区別フラグ（削除時の挙動分岐用）
+        isTemporary:  isTemp,  // 仮登録フラグ
       })
     }
   }
@@ -206,21 +210,23 @@ function CourseDetailModal({ entry, onRemove, onClose }) {
  */
 function CourseBlock({ entry, cellH = 72, isHalf = false, isTallStyle = false, onClick, selectable = false, selected = false }) {
   const c = termColor(entry.term)
-  const effectiveH = isHalf ? Math.floor(cellH / 2) : cellH
-  const maxLines   = effectiveH >= 72 ? 3 : 2
+  const effectiveH  = isHalf ? Math.floor(cellH / 2) : cellH
+  const maxLines    = effectiveH >= 72 ? 3 : 2
+  const isTemporary = entry.isTemporary === true
 
   // ── 縦長モード（旧デザイン完全再現） ────────────────────────────────────────
   if (isTallStyle) {
     return (
       <div className="h-full p-0.5 cursor-pointer relative" onClick={onClick}>
-        <div className={`h-full rounded-lg ${c.bg} border-2 transition-all
+        <div className={`h-full rounded-lg border-2 transition-all
                          overflow-hidden flex flex-col px-1.5 pt-1 pb-1.5
                          active:opacity-80
+                         ${isTemporary ? 'border-dashed border-amber-400 bg-amber-50 dark:bg-amber-500/10 opacity-80' : `${c.bg}`}
                          ${selectable && selected
                              ? 'border-indigo-500 ring-1 ring-indigo-400'
                              : selectable
                                ? `${c.bd} opacity-70`
-                               : c.bd}`}>
+                               : isTemporary ? '' : c.bd}`}>
           {/* 選択チェックバッジ */}
           {selectable && (
             <div className={`absolute top-1.5 right-1.5 w-4 h-4 rounded-full border-2 flex items-center justify-center z-10
@@ -232,10 +238,16 @@ function CourseBlock({ entry, cellH = 72, isHalf = false, isTallStyle = false, o
               )}
             </div>
           )}
+          {/* 仮登録バッジ（縦長モード） */}
+          {isTemporary && (
+            <div className="flex justify-center mb-0.5">
+              <span className="text-[7px] font-bold bg-amber-400 text-white px-1 rounded-full">仮</span>
+            </div>
+          )}
           {/* 授業名（中央揃え） */}
           <div className="flex-1 flex items-start justify-center min-w-0">
             <span
-              className={`font-bold ${c.name} leading-tight text-center`}
+              className={`font-bold leading-tight text-center ${isTemporary ? 'text-amber-800 dark:text-amber-300' : c.name}`}
               style={{
                 fontSize: 9,
                 overflow: 'hidden',
@@ -267,18 +279,21 @@ function CourseBlock({ entry, cellH = 72, isHalf = false, isTallStyle = false, o
   // ── 均等モード（現デザイン: 左カラーストリップ） ────────────────────────────
   const isIndigo = entry.term == null
   const isOdd    = entry.term != null && entry.term % 2 === 1
-  const strip    = isIndigo ? 'bg-indigo-400' : isOdd ? 'bg-blue-500' : 'bg-violet-500'
-  const cardBg   = isIndigo ? 'bg-indigo-50 dark:bg-indigo-500/[0.12]'
+  const strip    = isTemporary ? 'bg-amber-400'
+                 : isIndigo ? 'bg-indigo-400' : isOdd ? 'bg-blue-500' : 'bg-violet-500'
+  const cardBg   = isTemporary ? 'bg-amber-50 dark:bg-amber-500/[0.12]'
+                 : isIndigo ? 'bg-indigo-50 dark:bg-indigo-500/[0.12]'
                  : isOdd    ? 'bg-blue-50 dark:bg-blue-500/[0.12]'
                  :             'bg-violet-50 dark:bg-violet-500/[0.12]'
-  const titleCl  = isIndigo ? 'text-indigo-800 dark:text-indigo-200'
+  const titleCl  = isTemporary ? 'text-amber-800 dark:text-amber-300'
+                 : isIndigo ? 'text-indigo-800 dark:text-indigo-200'
                  : isOdd    ? 'text-blue-800 dark:text-blue-200'
                  :             'text-violet-800 dark:text-violet-200'
   const fz    = effectiveH >= 80 ? 10.5 : effectiveH >= 62 ? 9.5 : 9
   const lines = effectiveH >= 72 ? 3 : 2
 
   return (
-    <div className="h-full p-px relative cursor-pointer" onClick={onClick}>
+    <div className={`h-full p-px relative cursor-pointer ${isTemporary ? 'opacity-75' : ''}`} onClick={onClick}>
       {/* 一括選択バッジ */}
       {selectable && (
         <div className={`absolute top-1 right-1 z-10 w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center
@@ -290,10 +305,17 @@ function CourseBlock({ entry, cellH = 72, isHalf = false, isTallStyle = false, o
           )}
         </div>
       )}
+      {/* 仮登録バッジ（均等モード） */}
+      {isTemporary && (
+        <div className="absolute top-0.5 right-0.5 z-10">
+          <span className="text-[7px] font-bold bg-amber-400 text-white px-1 rounded-full leading-none" style={{ paddingTop: 1.5, paddingBottom: 1.5 }}>仮</span>
+        </div>
+      )}
       {/* カード */}
       <div className={`h-full rounded-[5px] overflow-hidden flex flex-row
                        active:opacity-60 transition-opacity
                        ${cardBg}
+                       ${isTemporary ? 'border border-dashed border-amber-300 dark:border-amber-500/50' : ''}
                        ${selectable && selected ? 'ring-1 ring-inset ring-indigo-400' : ''}
                        ${selectable && !selected ? 'opacity-50' : ''}`}>
         {/* ターム識別ストリップ（左 3px） */}
@@ -351,6 +373,8 @@ export default function TimetableV2({
   enrollmentVersion = 'legacy',
   statusMap       = null,   // Map<classId, EnrollmentStatus> | null
   onStatusChange  = null,   // (classId, status) => void | null
+  // 仮登録 Set（composite key）
+  temporaryIds    = new Set(),
   // Bulk-status props
   studentId        = null,   // current student_id for bulk operations
   department       = '',     // current department_id for pipeline triggers
@@ -360,6 +384,18 @@ export default function TimetableV2({
 }) {
   const semester     = termFilter === '春学期' ? 'spring' : 'fall'
   const [oddT, evnT] = TERM_PAIR[semester]
+
+  // ── 最新開講年度（仮登録判定用） ─────────────────────────────────────────────
+  const latestYear = useMemo(() => {
+    const max = (courses ?? []).reduce((m, c) => {
+      const y = Number(c.academic_year)
+      return (Number.isFinite(y) && y > m) ? y : m
+    }, 0)
+    return max > 0 ? max : new Date().getFullYear()
+  }, [courses])
+
+  // academicYear が latestYear を超えている = 将来年度シミュレーションモード
+  const isFutureYearMode = academicYear != null && academicYear > latestYear
 
   const semesterTerms = useMemo(() => semester === 'spring'
     ? ['春学期', '通年', '第1ターム', '第2ターム']
@@ -378,7 +414,7 @@ export default function TimetableV2({
   const catalogEntries = useMemo(() =>
     deriveCatalogEntries(
       courses, selectedIds, enrollment, enrollmentVersion,
-      selectedGrade, semester, semesterTerms
+      selectedGrade, semester, semesterTerms, temporaryIds
     ),
   [courses, selectedIds, enrollment, enrollmentVersion, selectedGrade, semester, semesterTerms])
 
@@ -406,6 +442,8 @@ export default function TimetableV2({
   const [confirmDelGrade, setConfirmDelGrade] = useState(false)
   const [detailExtra,     setDetailExtra]     = useState(null)
   const [extraAddOpen,    setExtraAddOpen]    = useState(false)
+  // 将来年度仮登録確認ダイアログ
+  const [pendingTempAdd,  setPendingTempAdd]  = useState(null) // data obj from AddCourseModal
   // 年度ミスマッチ警告トースト
   const [yearWarnVisible, setYearWarnVisible] = useState(false)
   const yearWarnTimer = useRef(null)
@@ -424,6 +462,12 @@ export default function TimetableV2({
 
   const handleAdd = useCallback((data) => {
     if (data.classId) {
+      // 将来年度シミュレーションモードでは確認ダイアログを挟む
+      if (isFutureYearMode) {
+        setPendingTempAdd(data)
+        setAddModal(null)
+        return
+      }
       // composite key で重複チェック（異年度の同 class_id を区別）
       // 年度一致優先、なければ任意年度で探す（カタログが古い年度のみの場合に対応）
       const addedCourse = courses?.find(c => c.class_id === data.classId && (academicYear == null || c.academic_year === academicYear))
@@ -440,7 +484,7 @@ export default function TimetableV2({
       onEntriesChange?.()
     }
     setAddModal(null)
-  }, [academicYear, semester, onToggleEnrollment, selectedIds, onEntriesChange])
+  }, [academicYear, semester, onToggleEnrollment, selectedIds, onEntriesChange, isFutureYearMode, courses])
 
   const handleRemove = useCallback((id) => {
     // カタログ授業（_catalog フラグあり）
@@ -541,7 +585,9 @@ export default function TimetableV2({
    */
   const handleEntryClick = useCallback((entry) => {
     if (enrollmentVersion === 'new' && entry._catalog && entry.classId) {
-      const course = courses.find(c => c.class_id === entry.classId)
+      // academic_year が一致するコースを優先して探す（展開済みコースで同 class_id が複数年ある場合に対応）
+      const course = courses.find(c => c.class_id === entry.classId && c.academic_year === entry.academicYear)
+                  ?? courses.find(c => c.class_id === entry.classId)
       if (course) {
         setCatalogDetail({ course, classId: entry.classId, entry })
         return
@@ -579,10 +625,13 @@ export default function TimetableV2({
   }, [])
 
   const handleBulkSelectAll = useCallback(() => {
-    const gridIds  = entries.filter(e => e._catalog && e.classId).map(e => e.classId)
-    const extraIds = extraCourses.map(c => c.class_id)
+    // 仮登録授業はステータス変更不可のため一括選択から除外
+    const gridIds  = entries.filter(e => e._catalog && e.classId && !e.isTemporary).map(e => e.classId)
+    const extraIds = extraCourses
+      .filter(c => !temporaryIds.has(`${c.class_id}|${c.academic_year ?? ''}`))
+      .map(c => c.class_id)
     setBulkSelected(new Set([...gridIds, ...extraIds]))
-  }, [entries, extraCourses])
+  }, [entries, extraCourses, temporaryIds])
 
   const handleBulkClear = useCallback(() => setBulkSelected(new Set()), [])
 
@@ -826,6 +875,21 @@ export default function TimetableV2({
         </div>
       </div>
 
+      {/* ── 将来年度シミュレーション バナー ────────────────────────────────────── */}
+      {isFutureYearMode && (
+        <div className="mx-2 mb-1 flex-shrink-0">
+          <div className="flex items-start gap-2.5 bg-amber-50 dark:bg-amber-500/10
+                          border border-amber-200 dark:border-amber-500/30
+                          rounded-xl px-3.5 py-2.5">
+            <span className="text-[9px] font-bold bg-amber-400 text-white px-1.5 py-0.5 rounded flex-shrink-0 mt-0.5">仮</span>
+            <p className="text-xs font-medium text-amber-700 dark:text-amber-300 leading-snug">
+              {academicYear}年度の開講情報は未確定のため、最新の{latestYear}年度データを用いて仮登録します。
+              卒業要件の集計には含まれません。
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ── 年度ミスマッチ警告トースト ──────────────────────────────────────── */}
       {yearWarnVisible && (
         <div className="mx-2 mb-1 flex-shrink-0">
@@ -912,11 +976,11 @@ export default function TimetableV2({
                           cellH={cellH}
                           isTallStyle={cellStyle === 'tall'}
                           onClick={() =>
-                            bulkSelectMode && halfEntry.classId && halfEntry._catalog
+                            bulkSelectMode && halfEntry.classId && halfEntry._catalog && !halfEntry.isTemporary
                               ? handleBulkToggle(halfEntry.classId)
                               : handleEntryClick(halfEntry)
                           }
-                          selectable={bulkSelectMode && !!halfEntry.classId && halfEntry._catalog}
+                          selectable={bulkSelectMode && !!halfEntry.classId && halfEntry._catalog && !halfEntry.isTemporary}
                           selected={bulkSelected.has(halfEntry.classId)}
                         />
                       )}
@@ -934,11 +998,11 @@ export default function TimetableV2({
                                 isHalf
                                 isTallStyle={cellStyle === 'tall'}
                                 onClick={() =>
-                                  bulkSelectMode && upperEntry.classId && upperEntry._catalog
+                                  bulkSelectMode && upperEntry.classId && upperEntry._catalog && !upperEntry.isTemporary
                                     ? handleBulkToggle(upperEntry.classId)
                                     : handleEntryClick(upperEntry)
                                 }
-                                selectable={bulkSelectMode && !!upperEntry.classId && upperEntry._catalog}
+                                selectable={bulkSelectMode && !!upperEntry.classId && upperEntry._catalog && !upperEntry.isTemporary}
                                 selected={bulkSelected.has(upperEntry.classId)}
                               />
                             ) : (
@@ -964,11 +1028,11 @@ export default function TimetableV2({
                                 isHalf
                                 isTallStyle={cellStyle === 'tall'}
                                 onClick={() =>
-                                  bulkSelectMode && lowerEntry.classId && lowerEntry._catalog
+                                  bulkSelectMode && lowerEntry.classId && lowerEntry._catalog && !lowerEntry.isTemporary
                                     ? handleBulkToggle(lowerEntry.classId)
                                     : handleEntryClick(lowerEntry)
                                 }
-                                selectable={bulkSelectMode && !!lowerEntry.classId && lowerEntry._catalog}
+                                selectable={bulkSelectMode && !!lowerEntry.classId && lowerEntry._catalog && !lowerEntry.isTemporary}
                                 selected={bulkSelected.has(lowerEntry.classId)}
                               />
                             ) : (
@@ -1225,6 +1289,7 @@ export default function TimetableV2({
           isSelected={true}
           isConflict={false}
           toggling={false}
+          isTemporary={temporaryIds.has(`${catalogDetail.classId}|${catalogDetail.course?.academic_year ?? ''}`)}
           onToggle={() => {
             // entry が null = 時間外授業から開いた場合
             if (catalogDetail.entry) {
@@ -1277,6 +1342,53 @@ export default function TimetableV2({
           onConfirm={handleDeleteGrade}
           onCancel={() => setConfirmDelGrade(false)}
         />
+      )}
+
+      {/* ── 仮登録確認ダイアログ ──────────────────────────────────────────────── */}
+      {pendingTempAdd && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4"
+          style={{ background: 'rgba(0,0,0,0.45)', maxWidth: 430, margin: '0 auto' }}
+          onClick={() => setPendingTempAdd(null)}
+        >
+          <div className="bg-white dark:bg-[#1f2235] rounded-3xl p-6 w-full shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-[10px] font-bold bg-amber-400 text-white px-2 py-0.5 rounded-full">仮</span>
+              <span className="text-sm font-bold text-gray-800 dark:text-slate-100">仮登録として追加されます</span>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-slate-400 leading-relaxed mb-5">
+              {academicYear}年度の開講情報は未確定のため、最新の<strong className="text-gray-700 dark:text-slate-200">{latestYear}年度</strong>データを用いて仮登録します。
+              仮登録は卒業要件の集計に含まれませんが、「仮登録を含む」をONにすると集計されます。
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setPendingTempAdd(null)}
+                className="flex-1 py-3 rounded-2xl border border-gray-200 dark:border-white/[0.07]
+                           text-sm text-gray-600 dark:text-slate-300 font-semibold"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={() => {
+                  const data = pendingTempAdd
+                  // latestYear の course を探す（将来年度は latestYear にクランプ済み）
+                  const addedCourse = courses?.find(c => c.class_id === data.classId && c.academic_year === latestYear)
+                                   ?? courses?.find(c => c.class_id === data.classId)
+                  const ck = `${data.classId}|${addedCourse?.academic_year ?? ''}`
+                  if (onToggleEnrollment && !selectedIds?.includes(ck)) {
+                    onToggleEnrollment(data.classId)
+                  }
+                  setPendingTempAdd(null)
+                }}
+                className="flex-1 py-3 rounded-2xl bg-amber-500 text-white
+                           text-sm font-bold hover:bg-amber-600 transition-colors"
+              >
+                仮登録する
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── 授業追加モーダル ───────────────────────────────────────────────────── */}

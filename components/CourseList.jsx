@@ -161,6 +161,8 @@ export default function CourseList({
   selectedGrade = null, semesterFilter = null,
   // 開講年度フィルタ（academic_year が設定されている科目のみ有効）
   academicYear = null,
+  // 単位認定済み course_id の Set（「単位認定」バッジ表示用）
+  recognizedCourseIds = new Set(),
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [modal,      setModal]      = useState(null)
@@ -291,7 +293,9 @@ export default function CourseList({
             const badges     = getCourseBadges(c)
 
             // ステータスも composite key 参照
-            const enrollStatus = statusMap.get(ck)
+            const enrollStatus  = statusMap.get(ck)
+            // 単位認定フラグ（course_id 単位で判定 — class_id に依存しない）
+            const isRecognized  = recognizedCourseIds.has(c.course_id)
 
             const borderCls = isConflict
               ? 'border-2 border-red-500'
@@ -315,10 +319,17 @@ export default function CourseList({
                       {isConflict && (
                         <span className="text-xs text-red-600 font-semibold">⚠ 衝突</span>
                       )}
-                      {enrollmentVersion === 'new' && enrollStatus && STATUS_CONFIG[enrollStatus] && (
-                        <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${STATUS_CONFIG[enrollStatus].badge}`}>
-                          {STATUS_CONFIG[enrollStatus].label}
+                      {/* 単位認定バッジ — enrollment ステータスより優先して表示 */}
+                      {isRecognized ? (
+                        <span className="text-xs px-1.5 py-0.5 rounded-full font-medium bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300">
+                          単位認定
                         </span>
+                      ) : (
+                        enrollmentVersion === 'new' && enrollStatus && STATUS_CONFIG[enrollStatus] && (
+                          <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${STATUS_CONFIG[enrollStatus].badge}`}>
+                            {STATUS_CONFIG[enrollStatus].label}
+                          </span>
+                        )
                       )}
                     </div>
                     <div className="font-semibold text-sm text-gray-900 dark:text-slate-100 leading-snug">{c.course_name}</div>

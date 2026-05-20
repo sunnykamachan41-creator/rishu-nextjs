@@ -27,6 +27,7 @@ const TERM_COLORS = {
 export default function CourseModal({
   course, isSelected, isConflict, onToggle, onClose, toggling,
   enrollStatus, enrollmentVersion = 'legacy', onStatusChange,
+  isTemporary = false,
 }) {
   const isNewSchema = enrollmentVersion === 'new' && typeof onStatusChange === 'function'
 
@@ -44,6 +45,11 @@ export default function CourseModal({
 
         {/* ── バッジ行 ─────────────────────────────────────────────────────── */}
         <div className="flex flex-wrap gap-1.5 mb-3">
+          {isTemporary && (
+            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300">
+              仮登録
+            </span>
+          )}
           <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TERM_COLORS[course.term] || 'bg-gray-100 text-gray-600'}`}>
             {course.term}
           </span>
@@ -115,7 +121,29 @@ export default function CourseModal({
 
         {/* ── アクションボタン ──────────────────────────────────────────────── */}
 
-        {isNewSchema ? (
+        {isNewSchema && isTemporary ? (
+          /* 仮登録: ステータス変更不可、取り消しのみ */
+          <div className="space-y-2">
+            <div className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10
+                            rounded-xl px-3 py-2.5 leading-relaxed border border-amber-200 dark:border-amber-500/20">
+              仮登録のため、ステータス変更はできません。
+              卒業要件の集計には含まれません。
+            </div>
+            {enrollStatus && (
+              <button
+                onClick={() => onStatusChange('REMOVE')}
+                disabled={toggling}
+                className={`w-full py-3 rounded-2xl text-sm font-semibold transition-all ${
+                  toggling
+                    ? 'bg-gray-100 dark:bg-white/10 text-gray-400 dark:text-slate-500'
+                    : 'bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-slate-300 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400'
+                }`}
+              >
+                {toggling ? '更新中…' : '仮登録を取り消す'}
+              </button>
+            )}
+          </div>
+        ) : isNewSchema ? (
           /* 新スキーマ: ステータスピッカー */
           <div className="space-y-2">
             {enrollStatus ? (

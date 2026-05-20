@@ -127,19 +127,55 @@ const CAT_LABELS_FULL = {
   CL_SEC:     '第二外国語 (CL_SEC)',
 }
 
+// ── recognized-courses API ヘルパー ──────────────────────────────────────────
+
+/**
+ * recognized_courses シートへのバッチ書き込み。
+ * 複数コースをまとめて1回のリクエストで送り、recalculate も1回だけ実行させる。
+ *
+ * @param {'add'|'remove'} action
+ * @param {Array<{courseId:string, academicYear:number|null, recognizedType:string|null}>} courses
+ * @returns {Promise<void>}
+ */
+async function apiRecognizedCoursesBatch(action, courses) {
+  try {
+    const res = await fetch('/api/recognized-courses', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ action, courses }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      console.error(`[ExemptionModal] recognized-courses ${action} failed:`, err)
+    }
+  } catch (err) {
+    console.error(`[ExemptionModal] recognized-courses ${action} error:`, err)
+  }
+}
+
 // ── ExemptionModal（メイン） ───────────────────────────────────────────────────
 
-export default function ExemptionModal({ courses, exemptions, onExemptionsChange, onClose }) {
+export default function ExemptionModal({
+  courses, exemptions, onExemptionsChange, onClose,
+  /** recognized_courses 書き込み後に呼ぶコールバック（省略可）。SWR mutate など。 */
+  onRecognitionChange,
+  /** 認定コースに付与する年度（gradeToYear で算出した学生の現在年度）。
+   *  省略時は各コースの academic_year を使うが、展開コースの start_year になってしまうため
+   *  必ず page.jsx から渡すこと。 */
+  academicYear,
+}) {
   const [view,         setView]         = useState('list')
   const [step,         setStep]         = useState(1)
   const [selType,      setSelType]      = useState(null)
   const [selLang,      setSelLang]      = useState(null)
   const [selCourseIds, setSelCourseIds] = useState(new Set())
+  const [submitting,   setSubmitting]   = useState(false)  // 二重送信防止
 
   // ── handlers ─────────────────────────────────────────────────────────────
 
   function handleAdd() {
     if (!selType) return
+    if (submitting) return  // 二重送信ガード
     const def = EXEMPTION_DEFS[selType]
 
     let appliedCourses = []
@@ -152,24 +188,65 @@ export default function ExemptionModal({ courses, exemptions, onExemptionsChange
       appliedCourses   = getSecondLangCourses(courses, langLabel, selLang)
       label            = `${def.label} (${langLabel})`
     } else {
-      appliedCourses = courses.filter(c => selCourseIds.has(getCourseId(c)))
+      // expandCoursesByYear で同一 course_id が複数年コピーされているため
+      // course_id 単位で重複排除する（先頭 1 件のみ採用）。
+      // 重複排除しないと同じ course_id が N 回 upsert され、
+      // Google Sheets の eventual consistency により複数行が挿入されてしまう。
+      const seen = new Set()
+      appliedCourses = courses.filter(c => {
+        const cid = getCourseId(c)
+        if (!selCourseIds.has(cid) || seen.has(cid)) return false
+        seen.add(cid)
+        return true
+      })
     }
 
     const categoryCredits = computeCategoryCredits(appliedCourses, def.caps, selType)
     const totalCredits    = Object.values(categoryCredits).reduce((s, v) => s + v, 0)
     if (totalCredits === 0) return
 
+    // course_id 単位で重複排除して保存
+    const appliedCourseIds = appliedCourses.map(c => getCourseId(c))
+
+    // ① localStorage に保存（即時 UI 反映）
     onExemptionsChange(addExemption({
       exemptionType:    selType,
       language,
-      appliedCourseIds: appliedCourses.map(c => getCourseId(c)),
+      appliedCourseIds,
       categoryCredits,
       label,
     }))
+
+    // ② recognized_courses シートへ一括書き込み → recalculate
+    // submitting フラグで二重送信を防ぐ。API 完了後にフラグを解除して SWR を再検証。
+    //
+    // academicYear prop（学生の現在年度）を優先する。
+    // prop 未指定の場合は c.academic_year にフォールバックするが、expandCoursesByYear の
+    // start_year になってしまう（例: 2020）ため、page.jsx から必ず渡すこと。
+    const batchCourses = appliedCourses.map(c => ({
+      courseId:      getCourseId(c),
+      academicYear:  academicYear ?? c.academic_year ?? null,
+      recognizedType: selType,
+    }))
+    setSubmitting(true)
+    apiRecognizedCoursesBatch('add', batchCourses)
+      .then(() => onRecognitionChange?.())
+      .finally(() => setSubmitting(false))
+
     resetAddFlow()
   }
 
   function handleRemove(id) {
+    const ex = exemptions.find(e => e.id === id)
+
+    // ① recognized_courses シートから一括削除 → recalculate（非同期 fire-and-forget）
+    if (ex?.appliedCourseIds?.length) {
+      const batchCourses = ex.appliedCourseIds.map(cid => ({ courseId: cid }))
+      apiRecognizedCoursesBatch('remove', batchCourses)
+        .then(() => onRecognitionChange?.())
+    }
+
+    // ② localStorage から削除
     onExemptionsChange(removeExemption(id))
   }
 
@@ -580,9 +657,6 @@ function EnglishCoursePicker({ courses, caps, selCourseIds, onCourseIdsChange })
                         }`}>
                           {c.course_name}
                         </div>
-                        {c.intructor && (
-                          <div className="text-xs text-gray-400 dark:text-slate-500 truncate">{c.intructor}</div>
-                        )}
                       </div>
                       <span className={`text-xs font-bold flex-shrink-0 ${
                         checked ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-slate-500'

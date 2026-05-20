@@ -9,6 +9,7 @@ import Dashboard from '@/components/Dashboard'
 import EmptyRooms from '@/components/EmptyRooms'
 import ProfileDrawer from '@/components/drawer/ProfileDrawer'
 import ExemptionModal from '@/components/ExemptionModal'
+import CatalogTab from '@/components/CatalogTab'
 import { DEFAULT_FILTERS } from '@/components/FilterDrawer'
 import {
   loadEnrollmentYear, saveEnrollmentYear,
@@ -39,7 +40,7 @@ const fetcher = url => fetch(url).then(r => {
 
 const TABS = [
   { id: 'timetable',    label: '時間割',   icon: CalendarIcon },
-  { id: 'courses',      label: '履修登録', icon: BookIcon },
+  { id: 'courses',      label: 'カタログ', icon: BookIcon },
   { id: 'requirements', label: '卒業要件', icon: CheckIcon },
   { id: 'summary',      label: 'ダッシュボード', icon: ChartIcon },
   { id: 'emptyrooms',   label: '空き部屋', icon: DoorIcon },
@@ -88,6 +89,12 @@ export default function Page() {
   // localStorage は使用しない（student_id ごとに異なる値が混在するため）。
   const [department, setDepartment] = useState('')
 
+  // 学年管理（handleDepartmentSelect が enrollmentYear を参照するため、先に宣言する）
+  const [enrollmentYear, setEnrollmentYear] = useState(loadEnrollmentYear)
+  const [maxGrade,       setMaxGrade]       = useState(loadMaxGrade)
+  const [selectedGrade,  setSelectedGrade]  = useState(1)
+  const academicYear = gradeToYear(selectedGrade, enrollmentYear)
+
   /**
    * department 選択確定ハンドラ。
    * 1. POST /api/users でサーバー（users シート）に書き込む
@@ -109,8 +116,8 @@ export default function Page() {
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({
           department_id:   value,
-          // 入学年度（curriculum_year）: 初回オンボーディング時のみ送信
-          ...(enrollmentYearOverride ? { curriculum_year: enrollmentYearOverride } : {}),
+          // 入学年度（curriculum_year）: 常に送信（変更時も現在の入学年度を保持）
+          curriculum_year: enrollmentYearOverride ?? enrollmentYear,
         }),
       })
       if (!res.ok) {
@@ -141,19 +148,12 @@ export default function Page() {
   // mutate は useSWR より前に宣言されているため deps には含めない。
   // SWR の mutate は同一 key に対して参照安定であるため stale closure の問題はない。
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [studentId])
+  }, [studentId, enrollmentYear])
 
   // 「取得予定を含む」モード（履修予定・履修中を取得済みとして卒業要件・単位集計に計上）
   const [includeProjected, setIncludeProjected] = useState(() => {
     try { return localStorage.getItem('rishu_include_projected') === '1' } catch { return false }
   })
-
-  // 学年管理
-  const [enrollmentYear, setEnrollmentYear] = useState(loadEnrollmentYear)
-  const [maxGrade,       setMaxGrade]       = useState(loadMaxGrade)
-  // 選択中の学年（1始まり）→ 年度に変換して内部管理
-  const [selectedGrade,  setSelectedGrade]  = useState(1)
-  const academicYear = gradeToYear(selectedGrade, enrollmentYear)
 
   const handleGradeChange = useCallback((grade) => {
     setSelectedGrade(grade)
@@ -177,7 +177,15 @@ export default function Page() {
   const handleEnrollmentYearChange = useCallback((year) => {
     setEnrollmentYear(year)
     saveEnrollmentYear(year)
-  }, [])
+    // users シートにも反映（curriculum_year を更新）
+    if (department) {
+      fetch('/api/users', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ department_id: department, curriculum_year: year }),
+      }).catch(err => console.error('[handleEnrollmentYearChange] save failed:', err))
+    }
+  }, [department])
 
   // timetable エントリ変更時に useCreditSummary の再計算をトリガーする
   const [entrySyncKey, setEntrySyncKey] = useState(0)
@@ -188,6 +196,16 @@ export default function Page() {
   // 単位認定（enrollment とは完全に別管理）
   const [exemptions,      setExemptions]      = useState(loadExemptions)
   const [exemptionOpen,   setExemptionOpen]   = useState(false)
+
+  // カタログタブ: 表示年度モード（初期値は現在年度）
+  const currentRealYear = new Date().getFullYear()
+  const [catalogYear, setCatalogYear] = useState(currentRealYear)
+
+  // 仮登録を含む: 卒業要件・ダッシュボードに仮登録を加算するかどうか
+  const [includeTemporary, setIncludeTemporary] = useState(false)
+  const handleToggleTemporary = useCallback(() => {
+    setIncludeTemporary(prev => !prev)
+  }, [])
 
   const [courseFilters, setCourseFilters] = useState(DEFAULT_FILTERS)
   const [courseQuery,   setCourseQuery]   = useState('')
@@ -246,6 +264,34 @@ export default function Page() {
     if (data === undefined) return   // まだロード中
     setDepartment(data?.userDepartment || '')
   }, [data?.userDepartment, studentId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // users シートの userCurriculumYear を正として enrollmentYear state に同期する。
+  // サーバー側に値があればそちらを優先し、localStorage も更新して以後のロードで一致させる。
+  // 値がない場合は既存の localStorage 値（または currentAcademicYear）をそのまま使う。
+  useEffect(() => {
+    if (data === undefined) return   // まだロード中
+    const serverYear = data?.userCurriculumYear
+    if (serverYear != null && Number.isFinite(serverYear)) {
+      setEnrollmentYear(serverYear)
+      saveEnrollmentYear(serverYear)   // localStorage も更新
+    }
+  }, [data?.userCurriculumYear, studentId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // カタログタブの初期年度を最新開講年度に設定する。
+  // enrollment.academic_year は常に実在年度のみ保存するため、
+  // courses の academic_year の最大値 = 最新開講年度 を使用する。
+  const catalogYearInitialized = useRef(false)
+  useEffect(() => {
+    if (!data?.courses?.length || catalogYearInitialized.current) return
+    const latestCourseYear = data.courses.reduce((max, c) => {
+      const y = Number(c.academic_year)
+      return (Number.isFinite(y) && y > max) ? y : max
+    }, 0)
+    if (latestCourseYear > 0) {
+      catalogYearInitialized.current = true
+      setCatalogYear(latestCourseYear)
+    }
+  }, [data?.courses])
 
   // ── New-schema: status change handler ────────────────────────────────────────
   // Used when enrollmentVersion === 'new'.
@@ -390,6 +436,19 @@ export default function Page() {
       })
   }, [toggling, mutate, data, selectedGrade, timetableTermFilter, department])
 
+  // recognized course_id の Set（CourseList の「単位認定」バッジ表示に使用）
+  const recognizedCourseIdSet = useMemo(
+    () => new Set((data?.recognizedCourses ?? []).map(r => r.course_id).filter(Boolean)),
+    [data?.recognizedCourses],
+  )
+
+  // ── 単位認定: recognized_courses シート書き込み後のコールバック ────────────────
+  // ExemptionModal が recognized_courses API 呼び出し完了後に呼ぶ。
+  // SWR を再検証して UI を最新化する（recalculate は別途手動で実行）。
+  const handleRecognitionChange = useCallback(() => {
+    mutate()
+  }, [mutate])
+
   // Optimistic enrollment toggle (add = PLANNED, remove = REMOVE)
   // ★ Fire-and-forget: optimistic update is instant, write + revalidation in background
   const handleToggle = useCallback((classId) => {
@@ -499,7 +558,19 @@ export default function Page() {
     () => data?.projectedIds ?? data?.selectedIds ?? [],
     [data?.projectedIds, data?.selectedIds],
   )
-  const activeIds = includeProjected ? projectedIds : completedIds
+  const temporaryIds = useMemo(
+    () => new Set(data?.temporaryIds ?? []),
+    [data?.temporaryIds],
+  )
+
+  // activeIds: includeProjected と includeTemporary を組み合わせて計算
+  const baseIds = includeProjected ? projectedIds : completedIds
+  const activeIds = useMemo(() => {
+    if (!includeTemporary) return baseIds
+    // 仮登録を含む: temporaryIds も加算
+    const tempArr = data?.temporaryIds ?? []
+    return [...new Set([...baseIds, ...tempArr])]
+  }, [baseIds, includeTemporary, data?.temporaryIds])
 
   // ── 単位集計（学年別・カテゴリ別） ───────────────────────────────────────────
   // Hooks must run unconditionally — pass data?.* so it handles null gracefully.
@@ -662,6 +733,7 @@ export default function Page() {
             enrollmentVersion={enrollmentVersion}
             statusMap={statusMap}
             onStatusChange={enrollmentVersion === 'new' ? handleStatusChange : null}
+            temporaryIds={temporaryIds}
             studentId={studentId}
             department={department}
             onBulkStatusDone={() => mutate()}
@@ -687,21 +759,21 @@ export default function Page() {
                 ＋ 単位認定を管理
               </button>
             </div>
-            {/* 履修登録リスト */}
+
+            {/* カタログタブ（年度モード・raw_category 横断表示） */}
             <div className="flex-1 min-h-0">
-              <CourseList
-                courses={courses} selectedIds={selectedIds}
-                onToggle={handleToggle} toggling={toggling}
-                filters={courseFilters} onFiltersChange={setCourseFilters}
-                query={courseQuery} onQueryChange={setCourseQuery}
+              <CatalogTab
+                catalogYear={catalogYear}
+                onYearChange={setCatalogYear}
+                enrollmentYear={data?.userCurriculumYear ?? enrollmentYear}
+                currentRealYear={currentRealYear}
+                selectedIds={selectedIds}
                 statusMap={statusMap}
-                enrollmentVersion={enrollmentVersion}
-                onStatusChange={handleStatusChange}
-                selectedGrade={selectedGrade}
-                semesterFilter={timetableTermFilter}
-                academicYear={academicYear}
+                temporaryIds={temporaryIds}
+                recognizedCourseIds={recognizedCourseIdSet}
               />
             </div>
+
             {/* 単位認定モーダル */}
             {exemptionOpen && (
               <ExemptionModal
@@ -709,6 +781,8 @@ export default function Page() {
                 exemptions={exemptions}
                 onExemptionsChange={setExemptions}
                 onClose={() => setExemptionOpen(false)}
+                onRecognitionChange={handleRecognitionChange}
+                academicYear={academicYear}
               />
             )}
           </div>
@@ -719,6 +793,8 @@ export default function Page() {
               studentId={studentId}
               includeProjected={includeProjected}
               onToggleProjected={handleToggleProjected}
+              includeTemporary={includeTemporary}
+              onToggleTemporary={handleToggleTemporary}
             />
           </div>
         )}
@@ -731,6 +807,8 @@ export default function Page() {
               creditSummary={creditSummary}
               includeProjected={includeProjected}
               onToggleProjected={handleToggleProjected}
+              includeTemporary={includeTemporary}
+              onToggleTemporary={handleToggleTemporary}
             />
           </div>
         )}

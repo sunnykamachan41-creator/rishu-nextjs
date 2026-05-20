@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
  * 認証: NextAuth セッション (session.user.student_id)
  * クライアントから studentId を送る必要はない。
  */
-export async function POST(request) {
+export async function POST(request: Request) {
   let _step = 'init'
   console.log('[POST /api/enrollment] called')
   try {
@@ -22,7 +22,7 @@ export async function POST(request) {
     if (!session?.user?.student_id) {
       return NextResponse.json({ error: 'ログインが必要です' }, { status: 401 })
     }
-    const studentId = session.user.student_id
+    const studentId: string = session.user.student_id
 
     _step = 'parse-body'
     const body = await request.json()
@@ -72,40 +72,20 @@ export async function POST(request) {
     _step = 'fetchAllSheets'
     const { courses: rawCourses, userCurriculumYear } = await fetchAllSheets(studentId)
 
-    // ── 最新開講年度を rawCourses から算出 ─────────────────────────────────────
-    // academic_year（直接指定）または end_year（レンジ末端）の最大値を使用する。
-    // enrollment.academic_year には「実在する開講年度」のみ保存するため、
-    // この latestYear を超える登録は is_temporary として latestYear にクランプする。
-    const latestYear = rawCourses.reduce((max, c) => {
-      const ay = parseInt(String(c.academic_year ?? ''), 10)
-      const ey = parseInt(String(c.end_year      ?? ''), 10)
-      const best = Math.max(Number.isFinite(ay) ? ay : 0, Number.isFinite(ey) ? ey : 0)
-      return best > max ? best : max
-    }, 0) || new Date().getFullYear()
-
     // 正規化なしで class_id を比較（normalizeId のみ使用）
     const normalizedClassId = normalizeId(classId)
+    const rawCourse = rawCourses.find(
+      (c: Record<string, string>) => normalizeId(c.class_id || c.course_id) === normalizedClassId
+    )
 
-    // 要求された academic_year（UI の学年から計算）
-    const rawCourse         = rawCourses.find(c => normalizeId(c.class_id || c.course_id) === normalizedClassId)
-    const rawAcademicYear   = rawCourse?.academic_year
+    const rawAcademicYear = rawCourse?.academic_year
     const courseAcademicYear = rawAcademicYear ? parseInt(String(rawAcademicYear), 10) : null
 
-    const requestedAcademicYear = (userCurriculumYear != null && Number.isFinite(studentGrade))
+    const academicYear: number | null = (userCurriculumYear != null && Number.isFinite(studentGrade))
       ? userCurriculumYear + (studentGrade - 1)
       : (Number.isFinite(courseAcademicYear) ? courseAcademicYear : null)
 
-    // ── 仮登録判定 & academic_year クランプ ────────────────────────────────────
-    // 将来年度シミュレーション（requestedAcademicYear > latestYear）の場合:
-    //   ① enrollment.academic_year は必ず latestYear（実在年度）を保存
-    //   ② is_temporary = TRUE
-    const isTemporary  = requestedAcademicYear != null && requestedAcademicYear > latestYear
-    const academicYear = isTemporary ? latestYear : requestedAcademicYear
-
-    console.log('[POST /api/enrollment] academicYear:', academicYear,
-      '(requested:', requestedAcademicYear, ', latestYear:', latestYear,
-      ', userCurriculumYear:', userCurriculumYear, ')')
-    console.log('[POST /api/enrollment] is_temporary:', isTemporary)
+    console.log('[POST /api/enrollment] academicYear:', academicYear, 'userCurriculumYear:', userCurriculumYear)
 
     _step = 'upsertEnrollment'
     const finalStatus = await upsertEnrollment({
@@ -115,20 +95,21 @@ export async function POST(request) {
       status,
       studentId,
       academic_year: academicYear,
-      is_temporary:  isTemporary,
     })
 
     return NextResponse.json({ classId, status: finalStatus })
-  } catch (err) {
+  } catch (err: unknown) {
     // JSON.stringify itself can throw (circular refs in gaxios response objects),
     // so use a safe serialiser that never throws.
-    const safeStr = (v) => {
+    const safeStr = (v: unknown) => {
       try { return JSON.stringify(v) } catch { return String(v) }
     }
-    const detail =
-      (typeof err?.message === 'string' && err.message ? err.message : '') ||
-      (Array.isArray(err?.errors) ? safeStr(err.errors) : '') ||
-      (err?.response?.data ? safeStr(err.response.data) : '') ||
+    const e = err as Record<string, unknown> | null
+    const detail: string =
+      (typeof e?.message === 'string' && e.message ? e.message : '') ||
+      (Array.isArray(e?.errors) ? safeStr(e.errors) : '') ||
+      (e?.response && (e.response as Record<string, unknown>)?.data
+        ? safeStr((e.response as Record<string, unknown>).data) : '') ||
       (err != null ? String(err) : 'unknown error')
     console.error(`[POST /api/enrollment] FAILED at step=${_step}:`, detail, err)
     try {

@@ -17,25 +17,48 @@ const fetcher = (url) =>
  * モード ① 卒業要件 / ② 副免許・資格 を切り替えて表示する。
  *
  * Props:
- *   studentId          : string — URL params から取得した確定済み student_id
- *   includeProjected?  : boolean — 履修予定を含むモード
- *   onToggleProjected? : () => void
- *   onRefresh?         : () => void
+ *   studentId           : string — URL params から取得した確定済み student_id
+ *   includeProjected?   : boolean — 履修予定を含むモード
+ *   onToggleProjected?  : () => void
+ *   includeTemporary?   : boolean — 仮登録を含むモード
+ *   onToggleTemporary?  : () => void
+ *   onRefresh?          : () => void
  */
-export default function GraduationTabV2({ onRefresh, studentId, includeProjected = false, onToggleProjected }) {
+export default function GraduationTabV2({
+  onRefresh,
+  studentId,
+  includeProjected = false,
+  onToggleProjected,
+  includeTemporary = false,
+  onToggleTemporary,
+}) {
   const [mode, setMode] = useState('graduation') // 'graduation' | 'license'
 
   return (
     <div className="h-full flex flex-col">
-      {onToggleProjected && (
-        <ProjectedToggle active={includeProjected} onToggle={onToggleProjected} />
+      {(onToggleProjected || onToggleTemporary) && (
+        <ProjectedToggle
+          active={includeProjected}
+          onToggle={onToggleProjected}
+          activeTemporary={includeTemporary}
+          onToggleTemporary={onToggleTemporary}
+        />
       )}
       <ModeBar mode={mode} onChange={setMode} />
       {mode === 'graduation' && (
-        <GraduationContent studentId={studentId} onRefresh={onRefresh} includeProjected={includeProjected} />
+        <GraduationContent
+          studentId={studentId}
+          onRefresh={onRefresh}
+          includeProjected={includeProjected}
+          includeTemporary={includeTemporary}
+        />
       )}
       {mode === 'license' && (
-        <LicenseContent studentId={studentId} includeProjected={includeProjected} />
+        <LicenseContent
+          studentId={studentId}
+          includeProjected={includeProjected}
+          includeTemporary={includeTemporary}
+        />
       )}
     </div>
   )
@@ -70,8 +93,12 @@ function ModeBar({ mode, onChange }) {
 
 // ── GraduationContent ─────────────────────────────────────────────────────────
 
-function GraduationContent({ studentId, includeProjected }) {
-  const swrKey = `/api/graduation/ui${includeProjected ? '?include_projected=1' : ''}`
+function GraduationContent({ studentId, includeProjected, includeTemporary }) {
+  const swrParams = new URLSearchParams()
+  if (includeProjected) swrParams.set('include_projected', '1')
+  if (includeTemporary) swrParams.set('include_temporary', '1')
+  const swrParamStr = swrParams.toString()
+  const swrKey = `/api/graduation/ui${swrParamStr ? `?${swrParamStr}` : ''}`
 
   const { data, isLoading, error, mutate } = useSWR(swrKey, fetcher, {
     revalidateOnFocus: false,
@@ -178,8 +205,12 @@ function GraduationContent({ studentId, includeProjected }) {
 
 // ── LicenseContent ────────────────────────────────────────────────────────────
 
-function LicenseContent({ studentId, includeProjected }) {
-  const swrKey = `/api/additional-license${includeProjected ? '?include_projected=1' : ''}`
+function LicenseContent({ studentId, includeProjected, includeTemporary }) {
+  const licParams = new URLSearchParams()
+  if (includeProjected) licParams.set('include_projected', '1')
+  if (includeTemporary) licParams.set('include_temporary', '1')
+  const licParamStr = licParams.toString()
+  const swrKey = `/api/additional-license${licParamStr ? `?${licParamStr}` : ''}`
 
   const { data, isLoading, error, mutate } = useSWR(swrKey, fetcher, {
     revalidateOnFocus: false,
@@ -576,7 +607,9 @@ function GroupSection({ group, items }) {
         <div className="flex items-center gap-2.5">
           {requiredItems.length > 0 && (
             <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-              allPassed ? 'bg-green-100 dark:bg-green-500/20 text-green-600 dark:text-green-400' : 'bg-gray-100 dark:bg-[#252839] text-gray-500 dark:text-slate-400'
+              allPassed
+                ? 'bg-green-100 dark:bg-green-500/20 text-green-600 dark:text-green-400'
+                : 'bg-red-50 dark:bg-red-500/10 text-red-500 dark:text-red-400'
             }`}>
               {passedItems.length}/{requiredItems.length}
             </span>
@@ -660,7 +693,7 @@ function RequirementItem({ item }) {
           <div className="flex items-center gap-2 flex-1 min-w-0">
             {required && (
               <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                pass === true ? 'bg-green-400' : 'bg-gray-200 dark:bg-white/20'
+                pass === true ? 'bg-green-400' : 'bg-red-400 dark:bg-red-400/80'
               }`} />
             )}
             <span className="text-sm text-gray-800 dark:text-slate-200 truncate leading-snug">
@@ -672,7 +705,7 @@ function RequirementItem({ item }) {
             {required ? (
               <div className="flex items-baseline gap-0.5">
                 <span className={`text-base font-bold leading-none ${
-                  pass === true ? 'text-green-600 dark:text-green-400' : 'text-gray-800 dark:text-slate-100'
+                  pass === true ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'
                 }`}>
                   {current_credits}
                 </span>
@@ -755,20 +788,23 @@ function RequirementItem({ item }) {
 
 // ── ProjectedToggle ───────────────────────────────────────────────────────────
 
-function ProjectedToggle({ active, onToggle }) {
+function ToggleSwitch({ active, onToggle, label, description, color = 'blue' }) {
+  const colorOn = color === 'amber'
+    ? 'bg-amber-500'
+    : 'bg-blue-500'
   return (
-    <div className="flex-shrink-0 bg-white dark:bg-[#1a1d27] border-b border-gray-100 dark:border-white/[0.07] px-3 py-2 flex items-center justify-between">
-      <div className="flex flex-col">
-        <span className="text-xs font-semibold text-gray-700 dark:text-slate-200">履修予定を含む</span>
-        <span className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
-          {active ? '履修予定・履修中を取得済みとして集計中' : '取得済みのみを集計中'}
-        </span>
+    <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col min-w-0">
+        <span className="text-xs font-semibold text-gray-700 dark:text-slate-200">{label}</span>
+        {description && (
+          <span className="text-[11px] text-gray-400 dark:text-slate-500 mt-0.5">{description}</span>
+        )}
       </div>
       <button
         onClick={onToggle}
         className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent
                     transition-colors duration-200 focus:outline-none
-                    ${active ? 'bg-blue-500' : 'bg-gray-200 dark:bg-slate-600'}`}
+                    ${active ? colorOn : 'bg-gray-200 dark:bg-slate-600'}`}
         role="switch"
         aria-checked={active}
       >
@@ -778,6 +814,31 @@ function ProjectedToggle({ active, onToggle }) {
                       ${active ? 'translate-x-5' : 'translate-x-0'}`}
         />
       </button>
+    </div>
+  )
+}
+
+function ProjectedToggle({ active, onToggle, activeTemporary, onToggleTemporary }) {
+  return (
+    <div className="flex-shrink-0 bg-white dark:bg-[#1a1d27] border-b border-gray-100 dark:border-white/[0.07] px-3 py-2 flex flex-col gap-2">
+      {onToggle && (
+        <ToggleSwitch
+          active={active}
+          onToggle={onToggle}
+          label="履修予定を含む"
+          description={active ? '履修予定・履修中を取得済みとして集計中' : '取得済みのみを集計中'}
+          color="blue"
+        />
+      )}
+      {onToggleTemporary && (
+        <ToggleSwitch
+          active={activeTemporary}
+          onToggle={onToggleTemporary}
+          label="仮登録を含む"
+          description={activeTemporary ? '仮登録コースを含めて集計中' : '仮登録コースは除外中'}
+          color="amber"
+        />
+      )}
     </div>
   )
 }
