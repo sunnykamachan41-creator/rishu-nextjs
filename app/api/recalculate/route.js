@@ -63,10 +63,10 @@ export async function POST(request) {
       await updateProgressAuto(sid)
     }
 
-    // ── Step 3: Aggregate credits for ALL students ────────────────────────────
-    // updateStudentsSummary reads the full progress_auto (all students) and
-    // updates every matched row in students_summary in one batchUpdate.
-    await updateStudentsSummary()
+    // ── Step 3: Aggregate credits ─────────────────────────────────────────────
+    // student_id が指定された場合はその学生のみ集計する。
+    // 省略時（管理者用途）は全学生を対象にする。
+    await updateStudentsSummary('', studentId ?? null)
 
     // ── Step 4: Recompute graduation results ──────────────────────────────────
     const graduation = await recalculateGraduation()

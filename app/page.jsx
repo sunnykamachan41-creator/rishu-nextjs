@@ -244,7 +244,11 @@ export default function Page() {
     // 3. 年度を適用
     applyEnrollmentYear(year)
 
-    // 4. SWR を再検証して UI に反映
+    // 4. 未保存変更を破棄（curriculum_year 変更でデータがリセットされるため）
+    setPendingChanges(new Map())
+    setSaveError(null)
+
+    // 5. SWR を再検証して UI に反映
     // mutate は useSWR より前に宣言されているため deps に含めない（参照安定）
     mutate()
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -286,11 +290,21 @@ export default function Page() {
     })
   }, [])
 
+  // ── 未保存の変更管理 ──────────────────────────────────────────────────────────
+  // Map<compositeKey, { op: 'upsert'|'remove', classId, courseId, year, semester,
+  //                     status, academic_year, is_temporary }>
+  // 授業追加・削除・ステータス変更時にローカルに追積し、「保存」押下時に一括送信する。
+  const [pendingChanges, setPendingChanges] = useState(() => new Map())
+  const [saveBusy,       setSaveBusy]       = useState(false)
+  const [saveError,      setSaveError]      = useState(null)
+  const hasPendingChanges = pendingChanges.size > 0
+
   // studentId（email）が確定するまで fetch しない（null キーは SWR をスキップ）
+  // 未保存の変更がある間は自動 refresh を停止して楽観的 UI を保護する
   const swrKey = studentId ? '/api/data' : null
   const { data, error, mutate, isLoading } = useSWR(swrKey, fetcher, {
-    refreshInterval:  30_000,
-    revalidateOnFocus: true,
+    refreshInterval:   hasPendingChanges ? 0 : 30_000,
+    revalidateOnFocus: !hasPendingChanges,
     dedupingInterval:  5_000,
   })
 
@@ -372,9 +386,6 @@ export default function Page() {
   //   2. setToggling clears as soon as the write request completes (~500ms)
   //   3. Revalidation runs silently in the background after the write
   const handleStatusChange = useCallback((classId, newStatus) => {
-    if (toggling) return
-    setToggling(classId)
-
     // 年度コンテキストを考慮して正しい年度のコースを取得
     const course         = data?.courses?.find(c => c.class_id === classId && (academicYear == null || c.academic_year === academicYear))
                         ?? data?.courses?.find(c => c.class_id === classId)
@@ -389,13 +400,12 @@ export default function Page() {
     if (newStatus !== 'REMOVE' && isAdding && course) {
       const enrollment = data?.enrollment ?? []
       if (shouldShowReEnrollModal(course.course_id, enrollment)) {
-        setToggling(null)
         setReEnrollModal({ classId, courseId, course })
         return
       }
     }
 
-    // Step 1: Apply optimistic update immediately (no network call, no await)
+    // Step 1: 楽観的 UI 更新（ネットワーク呼び出しなし・即時反映）
     mutate(current => {
       if (!current) return current
       if (newStatus === 'REMOVE') {
@@ -426,47 +436,42 @@ export default function Page() {
       }
     }, { revalidate: false })
 
-    // Step 2: Write in background — clears toggling on completion, revalidates silently
-    // semester は検証専用フィールド: 常に現在の UI 学期を送る（通年科目も含む）
-    // サーバー側が course.term から保存学期を決定するため null を送ってはならない
-    const validationSemester = timetableTermFilter === '秋学期' ? 'fall' : 'spring'
-    fetch('/api/enrollment', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        classId, courseId, status: newStatus, department, studentId,
-        ...(newStatus !== 'REMOVE' && { year: selectedGrade, semester: validationSemester }),
-      }),
-    })
-      .then(async r => {
-        if (!r.ok) {
-          const errBody = await r.json().catch(() => ({}))
-          throw new Error(`HTTP ${r.status}: ${errBody?.error ?? ''}`)
+    // Step 2: 未保存変更リストを更新（Sheets API は呼ばない）
+    const saveSemester    = timetableTermFilter === '秋学期' ? 'fall' : 'spring'
+    const saveAcademicYear = academicYear
+    const saveIsTemp       = latestCourseYear > 0 && saveAcademicYear > latestCourseYear
+    setPendingChanges(prev => {
+      const next = new Map(prev)
+      if (newStatus === 'REMOVE') {
+        // ローカルで追加したものを取り消す場合はエントリを削除（サーバーには送らない）
+        if (next.get(ck)?.op === 'upsert') {
+          next.delete(ck)
+        } else {
+          next.set(ck, { op: 'remove', classId, academic_year: saveAcademicYear })
         }
-        setToggling(null)
-        mutate()  // silent revalidation after successful write
-      })
-      .catch(e => {
-        console.error('enrollment write failed:', e)
-        setToggling(null)
-        mutate()  // revalidate to restore correct state on error
-      })
-  }, [toggling, mutate, data, selectedGrade, timetableTermFilter, department])
+      } else {
+        next.set(ck, {
+          op: 'upsert', classId, courseId, year: selectedGrade,
+          semester: saveSemester, status: newStatus,
+          academic_year: saveAcademicYear, is_temporary: saveIsTemp,
+        })
+      }
+      return next
+    })
+  }, [mutate, data, selectedGrade, academicYear, timetableTermFilter, latestCourseYear])
 
   // ── ReEnrollModal handler ─────────────────────────────────────────────────────
   // Called when user selects AUDIT or RE_ENROLL from the ReEnrollModal.
   // Behaves identically to handleStatusChange but skips the re-enrollment gate.
   const handleModalEnroll = useCallback((classId, courseId, status) => {
     setReEnrollModal(null)
-    if (toggling) return
-    setToggling(classId)
 
     const course         = data?.courses?.find(c => c.class_id === classId && (academicYear == null || c.academic_year === academicYear))
                         ?? data?.courses?.find(c => c.class_id === classId)
     const courseSemester = course ? termToSemKey(course.term) : null
     const ck = `${classId}|${course?.academic_year ?? ''}`
 
-    // Optimistic update
+    // 楽観的 UI 更新
     mutate(current => {
       if (!current) return current
       const alreadyIn = current.selectedIds.includes(ck)
@@ -487,23 +492,20 @@ export default function Page() {
       }
     }, { revalidate: false })
 
-    const validationSemester = timetableTermFilter === '秋学期' ? 'fall' : 'spring'
-    fetch('/api/enrollment', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ classId, courseId, status, department, studentId, year: selectedGrade, semester: validationSemester }),
+    // 未保存変更リストを更新
+    const saveSemester     = timetableTermFilter === '秋学期' ? 'fall' : 'spring'
+    const saveAcademicYear = academicYear
+    const saveIsTemp       = latestCourseYear > 0 && saveAcademicYear > latestCourseYear
+    setPendingChanges(prev => {
+      const next = new Map(prev)
+      next.set(ck, {
+        op: 'upsert', classId, courseId, year: selectedGrade,
+        semester: saveSemester, status,
+        academic_year: saveAcademicYear, is_temporary: saveIsTemp,
+      })
+      return next
     })
-      .then(r => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`)
-        setToggling(null)
-        mutate()
-      })
-      .catch(e => {
-        console.error('modal enroll failed:', e)
-        setToggling(null)
-        mutate()
-      })
-  }, [toggling, mutate, data, selectedGrade, timetableTermFilter, department])
+  }, [mutate, data, selectedGrade, academicYear, timetableTermFilter, latestCourseYear])
 
   // recognized course_id の Set（CourseList の「単位認定」バッジ表示に使用）
   const recognizedCourseIdSet = useMemo(
@@ -519,17 +521,14 @@ export default function Page() {
   }, [mutate])
 
   // Optimistic enrollment toggle (add = PLANNED, remove = REMOVE)
-  // ★ Fire-and-forget: optimistic update is instant, write + revalidation in background
+  // ★ ローカル state のみ更新・Sheets API は呼ばない（保存ボタンで一括保存）
   const handleToggle = useCallback((classId) => {
-    if (toggling) return
-    setToggling(classId)
-
     const course   = data?.courses?.find(c => c.class_id === classId && (academicYear == null || c.academic_year === academicYear))
                   ?? data?.courses?.find(c => c.class_id === classId)
     const courseId = course?.course_id ?? null
     const ck = `${classId}|${course?.academic_year ?? ''}`
 
-    // 学期は副作用なしで先に計算（ガード判定・学期フィルタ更新に使用）
+    // 学期は副作用なしで先に計算（学期フィルタ更新に使用）
     const courseSemester = course ? termToSemKey(course.term) : null
 
     // isAdding は composite key で判定（異年度の同 class_id を区別）
@@ -540,7 +539,6 @@ export default function Page() {
     if (isAdding && course) {
       const enrollment = data?.enrollment ?? []
       if (shouldShowReEnrollModal(course.course_id, enrollment)) {
-        setToggling(null)
         setReEnrollModal({ classId, courseId, course })
         return
       }
@@ -552,7 +550,7 @@ export default function Page() {
       if (courseSemester === 'spring') setTimetableTermFilter('春学期')
     }
 
-    // Step 1: Apply optimistic update immediately
+    // Step 1: 楽観的 UI 更新（即時反映）
     mutate(current => {
       if (!current) return current
       if (isAdding) {
@@ -578,35 +576,62 @@ export default function Page() {
       }
     }, { revalidate: false })
 
-    // Step 2: Write in background
-    // semester は検証専用フィールド: 常に現在の UI 学期を送る（通年科目も含む）
-    // サーバー側が course.term から保存学期を決定するため null を送ってはならない
-    const body = { classId, status, department, studentId }
-    if (isAdding) {
-      if (courseId) body.courseId = courseId
-      body.year     = selectedGrade
-      body.semester = timetableTermFilter === '秋学期' ? 'fall' : 'spring'
-    }
-
-    fetch('/api/enrollment', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(body),
-    })
-      .then(async r => {
-        if (!r.ok) {
-          const errBody = await r.json().catch(() => ({}))
-          throw new Error(`HTTP ${r.status}: ${errBody?.error ?? ''}`)
+    // Step 2: 未保存変更リストを更新（Sheets API は呼ばない）
+    const saveSemester     = timetableTermFilter === '秋学期' ? 'fall' : 'spring'
+    const saveAcademicYear = academicYear
+    const saveIsTemp       = latestCourseYear > 0 && saveAcademicYear > latestCourseYear
+    setPendingChanges(prev => {
+      const next = new Map(prev)
+      if (isAdding) {
+        next.set(ck, {
+          op: 'upsert', classId, courseId, year: selectedGrade,
+          semester: saveSemester, status: 'PLANNED',
+          academic_year: saveAcademicYear, is_temporary: saveIsTemp,
+        })
+      } else {
+        // ローカルで追加したものを取り消す場合 → エントリ削除（サーバーには送らない）
+        if (next.get(ck)?.op === 'upsert') {
+          next.delete(ck)
+        } else {
+          next.set(ck, { op: 'remove', classId, academic_year: saveAcademicYear })
         }
-        setToggling(null)
-        mutate()  // silent revalidation
+      }
+      return next
+    })
+  }, [mutate, data, selectedGrade, academicYear, timetableTermFilter, latestCourseYear])
+
+  // ── 一括保存 ─────────────────────────────────────────────────────────────────
+  const handleSave = useCallback(async () => {
+    if (!hasPendingChanges || saveBusy) return
+    setSaveBusy(true)
+    setSaveError(null)
+    try {
+      const changes = [...pendingChanges.values()]
+      const res = await fetch('/api/enrollment/batch', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ changes }),
       })
-      .catch(e => {
-        console.error('toggle failed:', e)
-        setToggling(null)
-        mutate()  // revalidate to restore
-      })
-  }, [toggling, mutate, data, selectedGrade, timetableTermFilter, department])
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        throw new Error(d.error || `HTTP ${res.status}`)
+      }
+      // 保存成功 → 未保存リストをクリアし、SWR をサーバー値で再検証
+      setPendingChanges(new Map())
+      mutate()
+    } catch (e) {
+      console.error('[handleSave]', e)
+      setSaveError(e.message)
+    } finally {
+      setSaveBusy(false)
+    }
+  }, [hasPendingChanges, saveBusy, pendingChanges, mutate])
+
+  const handleDiscard = useCallback(() => {
+    setPendingChanges(new Map())
+    setSaveError(null)
+    mutate()  // サーバー値に戻す
+  }, [mutate])
 
   // ── 休学期間（leaveSemesters / rawLeavePeriods） ────────────────────────────
   // 専用の SWR フック経由で取得。/api/leave-periods を直接読む（キャッシュなし）。
@@ -804,6 +829,42 @@ export default function Page() {
           onConfirm={handleConfirmCurriculumChange}
           onCancel={handleCancelCurriculumChange}
         />
+      )}
+
+      {/* ── 未保存バナー ─────────────────────────────────────────────────── */}
+      {hasPendingChanges && (
+        <div className="flex-shrink-0 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-500/30 px-3 py-2 flex items-center gap-2">
+          <span className="flex-1 text-xs font-medium text-amber-700 dark:text-amber-400 truncate">
+            {saveError
+              ? `保存エラー: ${saveError}`
+              : `未保存の変更があります（${pendingChanges.size}件）`}
+          </span>
+          <button
+            onClick={handleDiscard}
+            disabled={saveBusy}
+            className="text-xs font-semibold text-gray-500 dark:text-slate-400 px-2.5 py-1 rounded-lg
+                       hover:bg-gray-100 dark:hover:bg-white/[0.06] disabled:opacity-40 transition-colors flex-shrink-0"
+          >
+            破棄
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saveBusy}
+            className="text-xs font-semibold text-white bg-amber-500 hover:bg-amber-600
+                       px-3 py-1 rounded-lg disabled:opacity-50 transition-colors flex-shrink-0
+                       flex items-center gap-1"
+          >
+            {saveBusy ? (
+              <>
+                <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                </svg>
+                保存中…
+              </>
+            ) : '保存'}
+          </button>
+        </div>
       )}
 
       {/* Content */}
