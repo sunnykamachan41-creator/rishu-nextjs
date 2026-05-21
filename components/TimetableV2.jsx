@@ -800,14 +800,14 @@ export default function TimetableV2({
                 <button
                   onClick={() => onGradeChange(grade)}
                   className={`text-xs font-semibold rounded-xl transition-colors ${activeStyle
-                  } ${isLast && maxGrade > 1 ? 'pl-3 pr-6 py-1.5' : 'px-3 py-1.5'}`}
+                  } ${isLast && maxGrade > 4 ? 'pl-3 pr-6 py-1.5' : 'px-3 py-1.5'}`}
                 >
                   {grade}年生
                   {hasLeave && (
                     <span className="ml-1 text-[9px] opacity-80">🏠</span>
                   )}
                 </button>
-                {isLast && maxGrade > 1 && (
+                {isLast && maxGrade > 4 && (
                   <button
                     onClick={() => setConfirmDelGrade(true)}
                     className={`absolute right-1 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full

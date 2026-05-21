@@ -170,7 +170,7 @@ export default function Page() {
   }, [maxGrade])
 
   const handleDeleteGrade = useCallback(() => {
-    if (maxGrade <= 1) return
+    if (maxGrade <= 4) return
     const next = maxGrade - 1
     setMaxGrade(next)
     saveMaxGrade(next)
