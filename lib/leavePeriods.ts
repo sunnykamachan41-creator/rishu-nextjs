@@ -109,16 +109,30 @@ export function isLeaveSemester(
 /**
  * Compute displayGrade for sort recommendations.
  *
- * Each 2 leave semesters (= 1 full academic year of leave) subtracts 1 grade level.
- * This compensates the sort priority so that, e.g., a student who took 1 year off
- * and is now in 3年生 sees 2年 courses recommended first (matching their curriculum pos).
+ * The offset is only applied AFTER the student has returned from leave.
+ * Semesters before or during the leave period use the real grade (no shift),
+ * because the student was on the normal curriculum track up to that point.
+ *
+ * Example: leave 3_fall → 4_spring (2 sems, offset = 1)
+ *   - 1年春, 2年春, 3年春: displayGrade = realGrade   (before leave)
+ *   - 3年秋, 4年春:        displayGrade = realGrade   (during leave — locked anyway)
+ *   - 4年秋+:              displayGrade = realGrade - 1 (after return — shift applies)
  *
  * Used ONLY for AddCourseModal / AddExtraModal sort ordering.
  * Real grade data (enrollment.year) is never changed.
  */
 export function calculateDisplayGrade(
-  realGrade:      number,
-  leaveSemesters: GradeSemester[],
+  realGrade:       number,
+  currentSemester: GradeSemKey,
+  leaveSemesters:  GradeSemester[],
 ): number {
+  if (leaveSemesters.length === 0) return realGrade
+  const toNum = (g: number, s: GradeSemKey) => g * 2 + (s === 'spring' ? 0 : 1)
+  const currentNum   = toNum(realGrade, currentSemester)
+  const lastLeave    = leaveSemesters[leaveSemesters.length - 1]
+  const lastLeaveNum = toNum(lastLeave.grade, lastLeave.semester)
+  // Before or during leave → no shift
+  if (currentNum <= lastLeaveNum) return realGrade
+  // After return → apply offset
   return Math.max(1, realGrade - Math.floor(leaveSemesters.length / 2))
 }

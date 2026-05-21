@@ -618,7 +618,9 @@ export default function Page() {
   } = useLeavePeriods()
 
   // displayGrade: 休学補正後の表示学年（ソート優先度にのみ使用。実データは不変）
-  const displayGrade = calculateDisplayGrade(selectedGrade, leaveSemesters)
+  // 現在表示中の学期を GradeSemKey に変換し、休学後のみオフセットを適用する
+  const currentSemesterKey = timetableTermFilter === '秋学期' ? 'fall' : 'spring'
+  const displayGrade = calculateDisplayGrade(selectedGrade, currentSemesterKey, leaveSemesters)
 
   // ── New-schema: statusMap（早期 return より前で呼ぶ必要あり） ────────────────
   // data が null のときも useMemo は必ず呼ばれる（Rules of Hooks）
