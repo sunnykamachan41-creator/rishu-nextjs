@@ -22,20 +22,33 @@ const fetcher = (url) =>
  *   onToggleProjected?  : () => void
  *   includeTemporary?   : boolean — 仮登録を含むモード
  *   onToggleTemporary?  : () => void
- *   onRefresh?          : () => void
+ *   needsRecalc?        : boolean — 保存後に再集計が必要な場合 true
+ *   onRecalculate?      : () => void — 再集計実行コールバック
+ *   recalcBusy?         : boolean — 再集計中
+ *   recalcError?        : string | null — 再集計エラーメッセージ
  */
 export default function GraduationTabV2({
-  onRefresh,
   studentId,
   includeProjected = false,
   onToggleProjected,
   includeTemporary = false,
   onToggleTemporary,
+  needsRecalc   = false,
+  onRecalculate = null,
+  recalcBusy    = false,
+  recalcError   = null,
 }) {
   const [mode, setMode] = useState('graduation') // 'graduation' | 'license'
 
   return (
     <div className="h-full flex flex-col">
+      {/* 再集計バナー */}
+      <RecalcBanner
+        needsRecalc={needsRecalc}
+        onRecalculate={onRecalculate}
+        recalcBusy={recalcBusy}
+        recalcError={recalcError}
+      />
       {(onToggleProjected || onToggleTemporary) && (
         <ProjectedToggle
           active={includeProjected}
@@ -48,7 +61,6 @@ export default function GraduationTabV2({
       {mode === 'graduation' && (
         <GraduationContent
           studentId={studentId}
-          onRefresh={onRefresh}
           includeProjected={includeProjected}
           includeTemporary={includeTemporary}
         />
@@ -59,6 +71,44 @@ export default function GraduationTabV2({
           includeProjected={includeProjected}
           includeTemporary={includeTemporary}
         />
+      )}
+    </div>
+  )
+}
+
+// ── RecalcBanner ──────────────────────────────────────────────────────────────
+
+function RecalcBanner({ needsRecalc, onRecalculate, recalcBusy, recalcError }) {
+  if (!needsRecalc && !recalcError) return null
+  return (
+    <div className="flex-shrink-0 bg-blue-50 dark:bg-blue-500/10 border-b border-blue-100 dark:border-blue-500/20 px-4 py-2.5 flex items-center gap-3">
+      <div className="flex-1 min-w-0">
+        {recalcError ? (
+          <p className="text-xs font-medium text-red-500 truncate">再集計エラー: {recalcError}</p>
+        ) : (
+          <p className="text-xs font-medium text-blue-700 dark:text-blue-300">
+            保存した履修データを反映するには再集計してください
+          </p>
+        )}
+      </div>
+      {onRecalculate && (
+        <button
+          onClick={onRecalculate}
+          disabled={recalcBusy}
+          className="flex-shrink-0 flex items-center gap-1.5 text-xs font-semibold
+                     bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg
+                     disabled:opacity-50 transition-colors"
+        >
+          {recalcBusy ? (
+            <>
+              <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+              </svg>
+              集計中…
+            </>
+          ) : '履修データを再集計'}
+        </button>
       )}
     </div>
   )

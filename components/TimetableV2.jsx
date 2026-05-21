@@ -380,8 +380,6 @@ export default function TimetableV2({
   studentId        = null,   // current student_id for bulk operations
   department       = '',     // current department_id for pipeline triggers
   onBulkStatusDone = null,   // () => void — called after bulk update completes (triggers SWR revalidate)
-  // [DEV] 手動再計算
-  onRecalculate    = null,   // async () => void — called when 再計算 button is pressed
   // 休学期間 + 表示学年
   leaveSemesters   = [],     // GradeSemester[] — 休学学期一覧 ({ grade, semester })
   displayGrade     = null,   // number | null — 休学補正後の表示学年（ソート優先度用）
@@ -454,10 +452,6 @@ export default function TimetableV2({
   // 年度ミスマッチ警告トースト
   const [yearWarnVisible, setYearWarnVisible] = useState(false)
   const yearWarnTimer = useRef(null)
-  // [DEV] 手動再計算
-  const [recalcBusy, setRecalcBusy] = useState(false)
-  const [recalcDone, setRecalcDone] = useState(false)
-
   // 一括ステータス変更（選択モード）
   const [bulkSelectMode,   setBulkSelectMode]   = useState(false)
   const [bulkSelected,     setBulkSelected]     = useState(new Set()) // Set<classId>
@@ -696,35 +690,6 @@ export default function TimetableV2({
     }
   }, [bulkSelected, bulkStatusTarget, department, studentId, onBulkStatusDone])
 
-  // [DEV] 手動再計算
-  const handleRecalculate = useCallback(async () => {
-    setRecalcBusy(true)
-    setRecalcDone(false)
-    try {
-      if (onRecalculate) {
-        await onRecalculate()
-      } else {
-        const res = await fetch('/api/recalculate', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          // student_id を渡すことで自分のデータのみ高速再計算。
-          // 省略すると全学生を対象に処理される（管理者用途）。
-          body:    JSON.stringify({ student_id: studentId }),
-        })
-        if (!res.ok) {
-          const d = await res.json().catch(() => ({}))
-          throw new Error(d.error || `HTTP ${res.status}`)
-        }
-      }
-      setRecalcDone(true)
-      setTimeout(() => setRecalcDone(false), 3000)
-    } catch (err) {
-      console.error('[recalculate]', err)
-      alert(`再計算エラー: ${err.message}`)
-    } finally {
-      setRecalcBusy(false)
-    }
-  }, [studentId, onRecalculate])
 
   // リセット: 手動エントリ削除 + 新スキーマでは当学年学期の履修を API から一括解除
   const [resetBusy, setResetBusy] = useState(false)
@@ -880,39 +845,6 @@ export default function TimetableV2({
                   一括変更
                 </button>
               )
-            )}
-            {/* [DEV] 手動再計算ボタン */}
-            {enrollmentVersion === 'new' && (
-              <button
-                onClick={handleRecalculate}
-                disabled={recalcBusy}
-                className={`flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg
-                            transition-colors disabled:opacity-50
-                            ${recalcDone
-                              ? 'text-green-600 bg-green-50'
-                              : 'text-orange-400 hover:text-orange-600 hover:bg-orange-50'}`}
-                title="progress_auto / students_summary / graduation_result を再計算"
-              >
-                {recalcBusy ? (
-                  <>
-                    <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                    </svg>
-                    再計算中
-                  </>
-                ) : recalcDone ? (
-                  <>✓ 完了</>
-                ) : (
-                  <>
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    再計算
-                  </>
-                )}
-              </button>
             )}
             <button
               onClick={() => setConfirmReset(true)}

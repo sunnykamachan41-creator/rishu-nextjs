@@ -294,10 +294,17 @@ export default function Page() {
   // Map<compositeKey, { op: 'upsert'|'remove', classId, courseId, year, semester,
   //                     status, academic_year, is_temporary }>
   // 授業追加・削除・ステータス変更時にローカルに追積し、「保存」押下時に一括送信する。
-  const [pendingChanges, setPendingChanges] = useState(() => new Map())
-  const [saveBusy,       setSaveBusy]       = useState(false)
-  const [saveError,      setSaveError]      = useState(null)
+  const [pendingChanges,  setPendingChanges]  = useState(() => new Map())
+  const [saveBusy,        setSaveBusy]        = useState(false)
+  const [saveError,       setSaveError]       = useState(null)
   const hasPendingChanges = pendingChanges.size > 0
+
+  // ── 再集計フラグ ──────────────────────────────────────────────────────────────
+  // 保存完了後に true にセット → 卒業要件・ダッシュボードタブで案内バナーを表示。
+  // 再集計完了後に false にリセット。
+  const [needsRecalc,  setNeedsRecalc]  = useState(false)
+  const [recalcBusy,   setRecalcBusy]   = useState(false)
+  const [recalcError,  setRecalcError]  = useState(null)
 
   // studentId（email）が確定するまで fetch しない（null キーは SWR をスキップ）
   // 未保存の変更がある間は自動 refresh を停止して楽観的 UI を保護する
@@ -616,8 +623,9 @@ export default function Page() {
         const d = await res.json().catch(() => ({}))
         throw new Error(d.error || `HTTP ${res.status}`)
       }
-      // 保存成功 → 未保存リストをクリアし、SWR をサーバー値で再検証
+      // 保存成功 → 未保存リストをクリア、再集計フラグをセット、SWR 再検証
       setPendingChanges(new Map())
+      setNeedsRecalc(true)
       mutate()
     } catch (e) {
       console.error('[handleSave]', e)
@@ -632,6 +640,40 @@ export default function Page() {
     setSaveError(null)
     mutate()  // サーバー値に戻す
   }, [mutate])
+
+  // タブ切替: 時間割タブから離れるとき未保存があれば自動保存（fire-and-forget）
+  // ※ hasPendingChanges / saveBusy / handleSave が確定した後に定義する（TDZ 回避）
+  const handleTabChange = useCallback((newTab) => {
+    if (newTab === tab) return
+    if (tab === 'timetable' && hasPendingChanges && !saveBusy) {
+      handleSave()  // バックグラウンドで保存（タブ切替はブロックしない）
+    }
+    setTab(newTab)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, hasPendingChanges, saveBusy, handleSave])
+
+  const handleRecalculate = useCallback(async () => {
+    if (recalcBusy) return
+    setRecalcBusy(true)
+    setRecalcError(null)
+    try {
+      const res = await fetch('/api/recalculate', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ student_id: studentId }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        throw new Error(d.error || `HTTP ${res.status}`)
+      }
+      setNeedsRecalc(false)
+    } catch (e) {
+      console.error('[handleRecalculate]', e)
+      setRecalcError(e.message)
+    } finally {
+      setRecalcBusy(false)
+    }
+  }, [recalcBusy, studentId])
 
   // ── 休学期間（leaveSemesters / rawLeavePeriods） ────────────────────────────
   // 専用の SWR フック経由で取得。/api/leave-periods を直接読む（キャッシュなし）。
@@ -897,54 +939,54 @@ export default function Page() {
             displayGrade={displayGrade}
           />
         )}
-        {tab === 'courses' && (
-          <div className="h-full flex flex-col">
-            {/* 単位認定バナー */}
-            <div className="flex-shrink-0 bg-white dark:bg-[#1a1d27] border-b border-gray-100 dark:border-white/[0.07] px-3 py-2 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 dark:text-slate-400 font-medium">単位認定</span>
-                {exemptions.length > 0 && (
-                  <span className="bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 text-xs font-bold px-1.5 py-0.5 rounded-full">
-                    {exemptions.length}件
-                  </span>
-                )}
-              </div>
-              <button
-                onClick={() => setExemptionOpen(true)}
-                className="text-xs font-semibold text-blue-500 bg-blue-50 dark:bg-blue-500/10 dark:text-blue-400 px-3 py-1.5 rounded-full
-                           hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors"
-              >
-                ＋ 単位認定を管理
-              </button>
+        {/* カタログタブ: 常時マウント（タブ切替でもフィルタ・検索・年度状態を保持）
+            hidden クラスで display:none にするだけで React state は維持される */}
+        <div className={`h-full flex-col ${tab === 'courses' ? 'flex' : 'hidden'}`}>
+          {/* 単位認定バナー */}
+          <div className="flex-shrink-0 bg-white dark:bg-[#1a1d27] border-b border-gray-100 dark:border-white/[0.07] px-3 py-2 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 dark:text-slate-400 font-medium">単位認定</span>
+              {exemptions.length > 0 && (
+                <span className="bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 text-xs font-bold px-1.5 py-0.5 rounded-full">
+                  {exemptions.length}件
+                </span>
+              )}
             </div>
-
-            {/* カタログタブ（年度モード・raw_category 横断表示） */}
-            <div className="flex-1 min-h-0">
-              <CatalogTab
-                catalogYear={catalogYear}
-                onYearChange={setCatalogYear}
-                enrollmentYear={data?.userCurriculumYear ?? enrollmentYear}
-                currentRealYear={currentRealYear}
-                selectedIds={selectedIds}
-                statusMap={statusMap}
-                temporaryIds={temporaryIds}
-                recognizedCourseIds={recognizedCourseIdSet}
-              />
-            </div>
-
-            {/* 単位認定モーダル */}
-            {exemptionOpen && (
-              <ExemptionModal
-                courses={courses}
-                exemptions={exemptions}
-                onExemptionsChange={setExemptions}
-                onClose={() => setExemptionOpen(false)}
-                onRecognitionChange={handleRecognitionChange}
-                academicYear={academicYear}
-              />
-            )}
+            <button
+              onClick={() => setExemptionOpen(true)}
+              className="text-xs font-semibold text-blue-500 bg-blue-50 dark:bg-blue-500/10 dark:text-blue-400 px-3 py-1.5 rounded-full
+                         hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors"
+            >
+              ＋ 単位認定を管理
+            </button>
           </div>
-        )}
+
+          {/* カタログタブ（年度モード・raw_category 横断表示） */}
+          <div className="flex-1 min-h-0">
+            <CatalogTab
+              catalogYear={catalogYear}
+              onYearChange={setCatalogYear}
+              enrollmentYear={data?.userCurriculumYear ?? enrollmentYear}
+              currentRealYear={currentRealYear}
+              selectedIds={selectedIds}
+              statusMap={statusMap}
+              temporaryIds={temporaryIds}
+              recognizedCourseIds={recognizedCourseIdSet}
+            />
+          </div>
+
+          {/* 単位認定モーダル */}
+          {exemptionOpen && (
+            <ExemptionModal
+              courses={courses}
+              exemptions={exemptions}
+              onExemptionsChange={setExemptions}
+              onClose={() => setExemptionOpen(false)}
+              onRecognitionChange={handleRecognitionChange}
+              academicYear={academicYear}
+            />
+          )}
+        </div>
         {tab === 'requirements' && (
           <div className="h-full flex flex-col">
             <GraduationTabV2
@@ -953,6 +995,10 @@ export default function Page() {
               onToggleProjected={handleToggleProjected}
               includeTemporary={includeTemporary}
               onToggleTemporary={handleToggleTemporary}
+              needsRecalc={needsRecalc}
+              onRecalculate={handleRecalculate}
+              recalcBusy={recalcBusy}
+              recalcError={recalcError}
             />
           </div>
         )}
@@ -967,6 +1013,10 @@ export default function Page() {
               onToggleProjected={handleToggleProjected}
               includeTemporary={includeTemporary}
               onToggleTemporary={handleToggleTemporary}
+              needsRecalc={needsRecalc}
+              onRecalculate={handleRecalculate}
+              recalcBusy={recalcBusy}
+              recalcError={recalcError}
             />
           </div>
         )}
@@ -1004,7 +1054,7 @@ export default function Page() {
             return (
               <button
                 key={t.id}
-                onClick={() => setTab(t.id)}
+                onClick={() => handleTabChange(t.id)}
                 className={`nav-btn flex flex-col items-center justify-center py-3 gap-1
                             transition-colors active:scale-95
                             ${active ? 'text-blue-500' : 'text-gray-400 dark:text-slate-500'}`}
