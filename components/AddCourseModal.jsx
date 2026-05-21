@@ -93,10 +93,11 @@ export default function AddCourseModal({
   academicYear, grade, courses, existingEntries,
   onAdd, onClose,
 }) {
-  const [query,       setQuery]      = useState('')
-  const [customTitle, setCustomTitle] = useState('')
-  const [customMode,  setCustomMode]  = useState(false)
-  const [preview,     setPreview]    = useState(null)  // 詳細プレビュー対象のコース
+  const [query,          setQuery]         = useState('')
+  const [customTitle,    setCustomTitle]   = useState('')
+  const [customMode,     setCustomMode]    = useState(false)
+  const [preview,        setPreview]       = useState(null)
+  const [prioritizeGrade, setPrioritizeGrade] = useState(true)  // 学年優先ソート（デフォルトON）
 
   // ── コース絞り込み ────────────────────────────────────────────────────────
 
@@ -117,15 +118,27 @@ export default function AddCourseModal({
     return slotCourses.filter(c => c.term === termStr)
   }, [slotCourses, lockedTerm])
 
-  /** 検索クエリで絞る */
+  /** 検索クエリで絞り、学年優先ソートを適用 */
   const filtered = useMemo(() => {
-    if (!query) return termFilteredCourses
+    // 授業名なしは除外
+    const named = termFilteredCourses.filter(c => c.course_name?.trim())
+
     const q = query.toLowerCase()
-    return termFilteredCourses.filter(c =>
-      c.course_name?.toLowerCase().includes(q) ||
-      c.intructor?.toLowerCase().includes(q)
-    )
-  }, [termFilteredCourses, query])
+    const searched = q
+      ? named.filter(c =>
+          c.course_name?.toLowerCase().includes(q) ||
+          c.intructor?.toLowerCase().includes(q)
+        )
+      : named
+
+    if (!prioritizeGrade) return searched
+    // 標準受講学年（year === grade）の授業を優先
+    return [...searched].sort((a, b) => {
+      const aMatch = String(a.year) === String(grade) ? 0 : 1
+      const bMatch = String(b.year) === String(grade) ? 0 : 1
+      return aMatch - bMatch
+    })
+  }, [termFilteredCourses, query, grade, prioritizeGrade])
 
   // ── ハンドラ ────────────────────────────────────────────────────────────────
 
@@ -208,7 +221,20 @@ export default function AddCourseModal({
                 </div>
               )}
             </div>
-            <button onClick={onClose} className="text-gray-400 dark:text-slate-500 text-xl leading-none p-1">×</button>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                onClick={() => setPrioritizeGrade(v => !v)}
+                className={`text-xs font-semibold px-2.5 py-1 rounded-full border transition-colors ${
+                  prioritizeGrade
+                    ? 'bg-blue-500 text-white border-blue-500'
+                    : 'bg-gray-100 dark:bg-[#252839] text-gray-500 dark:text-slate-400 border-gray-200 dark:border-white/[0.07]'
+                }`}
+                title="標準受講学年の授業を優先表示"
+              >
+                {grade}年優先
+              </button>
+              <button onClick={onClose} className="text-gray-400 dark:text-slate-500 text-xl leading-none p-1">×</button>
+            </div>
           </div>
         </div>
 

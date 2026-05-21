@@ -277,21 +277,22 @@ export default function Page() {
     }
   }, [data?.userCurriculumYear, studentId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // カタログタブの初期年度を最新開講年度に設定する。
-  // enrollment.academic_year は常に実在年度のみ保存するため、
-  // courses の academic_year の最大値 = 最新開講年度 を使用する。
-  const catalogYearInitialized = useRef(false)
-  useEffect(() => {
-    if (!data?.courses?.length || catalogYearInitialized.current) return
-    const latestCourseYear = data.courses.reduce((max, c) => {
+  // 最新開講年度（courses の academic_year 最大値）
+  // EmptyRooms の課題年度フィルタ・カタログ初期年度設定に使用する
+  const latestCourseYear = useMemo(() => {
+    return (data?.courses ?? []).reduce((max, c) => {
       const y = Number(c.academic_year)
       return (Number.isFinite(y) && y > max) ? y : max
     }, 0)
-    if (latestCourseYear > 0) {
-      catalogYearInitialized.current = true
-      setCatalogYear(latestCourseYear)
-    }
   }, [data?.courses])
+
+  // カタログタブの初期年度を最新開講年度に設定する。
+  const catalogYearInitialized = useRef(false)
+  useEffect(() => {
+    if (!latestCourseYear || catalogYearInitialized.current) return
+    catalogYearInitialized.current = true
+    setCatalogYear(latestCourseYear)
+  }, [latestCourseYear])
 
   // ── New-schema: status change handler ────────────────────────────────────────
   // Used when enrollmentVersion === 'new'.
@@ -813,7 +814,11 @@ export default function Page() {
           </div>
         )}
         {tab === 'emptyrooms' && (
-          <EmptyRooms courses={courses} />
+          <EmptyRooms courses={
+            latestCourseYear > 0
+              ? courses.filter(c => c.academic_year === latestCourseYear)
+              : courses
+          } />
         )}
       </div>
 

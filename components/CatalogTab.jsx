@@ -2,7 +2,6 @@
 import { useState, useMemo, useCallback, useEffect, useRef, memo } from 'react'
 import useSWR from 'swr'
 import { FixedSizeList } from 'react-window'
-import { AutoSizer } from 'react-virtualized-auto-sizer'
 import CourseModal from './CourseModal'
 import { getCourseColor } from '@/lib/courseColor'
 import { STATUS_CONFIG } from '@/lib/enrollmentStatus'
@@ -164,6 +163,22 @@ export default function CatalogTab({
     onDetail: setModal,
   }), [filtered, selectedSet, statusMap, temporaryIds, recognizedCourseIds])
 
+  // ── ResizeObserver でリストコンテナのサイズを取得 ─────────────────────────────
+  const listContainerRef = useRef(null)
+  const [listSize, setListSize] = useState({ width: 375, height: 500 })
+  useEffect(() => {
+    const el = listContainerRef.current
+    if (!el) return
+    const ro = new ResizeObserver(([entry]) => {
+      setListSize({
+        width:  Math.floor(entry.contentRect.width),
+        height: Math.floor(entry.contentRect.height),
+      })
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
   const isTemporaryMode = catalogYear != null && currentRealYear != null && catalogYear > currentRealYear
   const filterCount = terms.length + days.length + periods.length + yearLevels.length
 
@@ -276,7 +291,7 @@ export default function CatalogTab({
       </div>
 
       {/* ── 仮想スクロールリスト ────────────────────────────────────────────── */}
-      <div className="flex-1 min-h-0">
+      <div ref={listContainerRef} className="flex-1 min-h-0">
         {isLoading ? (
           <div className="flex items-center justify-center h-32">
             <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
@@ -288,22 +303,18 @@ export default function CatalogTab({
               {courses.length === 0 ? 'この年度の授業データがありません' : '条件に一致する授業がありません'}
             </div>
           </div>
-        ) : (
-          <AutoSizer>
-            {({ height, width }) => (
-              <FixedSizeList
-                height={height}
-                width={width}
-                itemCount={filtered.length}
-                itemSize={ITEM_HEIGHT}
-                overscanCount={OVERSCAN}
-                itemData={itemData}
-              >
-                {Row}
-              </FixedSizeList>
-            )}
-          </AutoSizer>
-        )}
+        ) : listSize.height > 0 ? (
+          <FixedSizeList
+            height={listSize.height}
+            width={listSize.width}
+            itemCount={filtered.length}
+            itemSize={ITEM_HEIGHT}
+            overscanCount={OVERSCAN}
+            itemData={itemData}
+          >
+            {Row}
+          </FixedSizeList>
+        ) : null}
       </div>
 
       {/* ── 授業詳細モーダル（選択時のみ生成） ─────────────────────────────── */}

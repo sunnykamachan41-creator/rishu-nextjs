@@ -505,15 +505,33 @@ export default function TimetableV2({
   }, [catalogEntries, academicYear, semester, onToggleEnrollment, selectedIds, onEntriesChange])
 
   // ── 時間外授業 ─────────────────────────────────────────────────────────────────
+  // 新スキーマ: enrollment の year+semester で絞ることで、
+  // 「1年春に登録した通年授業」が「1年秋」や「2年春」に漏れ出さないようにする。
   const extraCourses = useMemo(() => {
-    if (!courses || !selectedIds) return []
+    if (!courses?.length || !selectedIds?.length) return []
+
+    let activeSet
+    if (enrollmentVersion === 'new' && enrollment?.length) {
+      activeSet = new Set(
+        enrollment
+          .filter(e =>
+            (e.year === selectedGrade || e.year === null) &&
+            (e.semester === semester || e.semester === null)
+          )
+          .map(e => `${e.class_id}|${e.academic_year ?? ''}`)
+      )
+    } else {
+      activeSet = new Set(selectedIds)
+    }
+
     return courses.filter(c => {
-      const t = c.normalized_time
+      const t  = c.normalized_time
+      const ck = `${c.class_id}|${c.academic_year ?? ''}`
       return (!t || t === 'EXTRA' || t === '0') &&
              semesterTerms.includes(c.term) &&
-             selectedIds.includes(`${c.class_id}|${c.academic_year ?? ''}`)
+             activeSet.has(ck)
     })
-  }, [courses, selectedIds, semesterTerms])
+  }, [courses, selectedIds, semesterTerms, enrollment, enrollmentVersion, selectedGrade, semester])
 
   const [extraOpen, setExtraOpen] = useState(false)
 
@@ -699,13 +717,39 @@ export default function TimetableV2({
     }
   }, [studentId, onRecalculate])
 
-  // リセット: 手動エントリのみ削除
-  // カタログ授業の一括解除は「履修登録」タブから行う
-  function handleReset() {
+  // リセット: 手動エントリ削除 + 新スキーマでは当学年学期の履修を API から一括解除
+  const [resetBusy, setResetBusy] = useState(false)
+  async function handleReset() {
+    setConfirmReset(false)
+
+    // 1. 手動エントリ（localStorage）を削除
     clearEntries(academicYear, semester)
     setManualEntries([])
-    setConfirmReset(false)
     onEntriesChange?.()
+
+    // 2. 新スキーマ: API 経由でカタログ授業・時間外授業を一括解除
+    if (enrollmentVersion === 'new') {
+      const idsToRemove = [
+        ...new Set([
+          ...catalogEntries.map(e => e.classId).filter(Boolean),
+          ...extraCourses.map(c => c.class_id).filter(Boolean),
+        ])
+      ]
+      if (idsToRemove.length > 0) {
+        setResetBusy(true)
+        await Promise.all(
+          idsToRemove.map(classId =>
+            fetch('/api/enrollment', {
+              method:  'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body:    JSON.stringify({ classId, status: 'REMOVE' }),
+            }).catch(e => console.error('[handleReset] remove failed:', classId, e))
+          )
+        )
+        setResetBusy(false)
+        onBulkStatusDone?.()   // SWR を再検証して UI に反映
+      }
+    }
   }
 
   function handleDeleteGrade() {
@@ -1323,13 +1367,30 @@ export default function TimetableV2({
       {/* ── 確認ダイアログ：リセット ───────────────────────────────────────────── */}
       {confirmReset && (
         <ConfirmDialog
-          message={`手動追加した授業をリセットしますか？`}
-          sub="カタログから登録した授業は「履修登録」タブから解除してください。"
+          message={enrollmentVersion === 'new'
+            ? `${selectedGrade}年生・${termFilter}の授業登録をすべてリセットしますか？`
+            : `手動追加した授業をリセットしますか？`}
+          sub={enrollmentVersion === 'new'
+            ? '時間割・時間外授業の登録を解除し、要件集計からも除外されます。'
+            : 'カタログから登録した授業は「履修登録」タブから解除してください。'}
           confirmLabel="リセット"
           confirmClass="bg-red-500 text-white"
           onConfirm={handleReset}
           onCancel={() => setConfirmReset(false)}
         />
+      )}
+      {/* リセット処理中オーバーレイ */}
+      {resetBusy && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.35)', maxWidth: 430, margin: '0 auto' }}>
+          <div className="bg-white dark:bg-[#1f2235] rounded-2xl px-8 py-6 flex items-center gap-3 shadow-xl">
+            <svg className="w-5 h-5 animate-spin text-red-500" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+            </svg>
+            <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">リセット中…</span>
+          </div>
+        </div>
       )}
 
       {/* ── 確認ダイアログ：学年削除 ──────────────────────────────────────────── */}
@@ -1503,27 +1564,38 @@ function ExtraCourseDetailModal({ course, onUnenroll, onClose }) {
 // ── AddExtraModal ─────────────────────────────────────────────────────────────
 
 function AddExtraModal({ courses, grade, semester, academicYear, selectedIds, onAdd, onClose }) {
-  const [query,   setQuery]   = useState('')
-  const [preview, setPreview] = useState(null)  // 詳細プレビュー対象
+  const [query,          setQuery]          = useState('')
+  const [preview,        setPreview]        = useState(null)
+  const [prioritizeGrade, setPrioritizeGrade] = useState(true)  // 学年優先ソート（デフォルトON）
 
-  // 学年・学期・開講年度の条件を満たす時間外コースのみ（登録可能候補に完全一致）
+  // 学年・学期・開講年度の条件を満たす時間外コースのみ（授業名なしは除外）
   const extraList = useMemo(() => {
     return courses.filter(c => {
       const t = c.normalized_time
       return (!t || t === 'EXTRA' || t === '0') &&
+             c.course_name?.trim() &&   // 授業名なしを除外
              isCourseEligible(c, grade, semester) &&
              (academicYear == null || c.academic_year == null || c.academic_year === academicYear)
     })
   }, [courses, grade, semester, academicYear])
 
   const filtered = useMemo(() => {
-    if (!query) return extraList
     const q = query.toLowerCase()
-    return extraList.filter(c =>
-      c.course_name?.toLowerCase().includes(q) ||
-      c.intructor?.toLowerCase().includes(q)
-    )
-  }, [extraList, query])
+    const base = q
+      ? extraList.filter(c =>
+          c.course_name?.toLowerCase().includes(q) ||
+          c.intructor?.toLowerCase().includes(q)
+        )
+      : extraList
+
+    if (!prioritizeGrade) return base
+    // 学年完全一致を優先（grade に一致する year の授業を上に）
+    return [...base].sort((a, b) => {
+      const aMatch = String(a.year) === String(grade) ? 0 : 1
+      const bMatch = String(b.year) === String(grade) ? 0 : 1
+      return aMatch - bMatch
+    })
+  }, [extraList, query, grade, prioritizeGrade])
 
   return (
     <>
@@ -1538,7 +1610,20 @@ function AddExtraModal({ courses, grade, semester, academicYear, selectedIds, on
               <div className="text-base font-bold text-gray-900 dark:text-slate-100">時間外授業を追加</div>
               <div className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">集中講義・特別授業など</div>
             </div>
-            <button onClick={onClose} className="text-gray-400 dark:text-slate-500 text-xl leading-none p-1">×</button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPrioritizeGrade(v => !v)}
+                className={`text-xs font-semibold px-2.5 py-1 rounded-full border transition-colors ${
+                  prioritizeGrade
+                    ? 'bg-blue-500 text-white border-blue-500'
+                    : 'bg-gray-100 dark:bg-[#252839] text-gray-500 dark:text-slate-400 border-gray-200 dark:border-white/[0.07]'
+                }`}
+                title="標準受講学年の授業を優先表示"
+              >
+                {grade}年優先
+              </button>
+              <button onClick={onClose} className="text-gray-400 dark:text-slate-500 text-xl leading-none p-1">×</button>
+            </div>
           </div>
         </div>
 
