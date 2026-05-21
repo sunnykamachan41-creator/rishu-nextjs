@@ -782,17 +782,30 @@ export default function TimetableV2({
         {/* 学年ピル行 */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-2" style={{ scrollbarWidth: 'none' }}>
           {Array.from({ length: maxGrade }, (_, i) => i + 1).map(grade => {
-            const isLast   = grade === maxGrade
-            const isActive = grade === selectedGrade
+            const isLast      = grade === maxGrade
+            const isActive    = grade === selectedGrade
+            // この学年のいずれかの学期が休学中かどうか
+            const hasLeave    = isLeaveSemester(leaveSemesters, grade, 'spring') ||
+                                isLeaveSemester(leaveSemesters, grade, 'fall')
+            // アクティブ & 休学中の場合は紫、そうでなければ通常の色
+            const activeStyle = isOnLeave && isActive
+              ? 'bg-purple-500 text-white'
+              : isActive
+                ? 'bg-blue-500 text-white'
+                : hasLeave
+                  ? 'bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-500/20'
+                  : 'bg-gray-100 dark:bg-[#252839] text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-[#2a2d3f]'
             return (
               <div key={grade} className="relative flex-shrink-0">
                 <button
                   onClick={() => onGradeChange(grade)}
-                  className={`text-xs font-semibold rounded-xl transition-colors ${
-                    isActive ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-[#252839] text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-[#2a2d3f]'
+                  className={`text-xs font-semibold rounded-xl transition-colors ${activeStyle
                   } ${isLast && maxGrade > 1 ? 'pl-3 pr-6 py-1.5' : 'px-3 py-1.5'}`}
                 >
                   {grade}年生
+                  {hasLeave && (
+                    <span className="ml-1 text-[9px] opacity-80">🏠</span>
+                  )}
                 </button>
                 {isLast && maxGrade > 1 && (
                   <button
@@ -821,16 +834,25 @@ export default function TimetableV2({
         {/* 学期タブ + 設定ボタン行 */}
         <div className="flex items-center">
           <div className="flex gap-4">
-            {Object.entries(SEMESTER_LABELS).map(([key, label]) => (
+            {Object.entries(SEMESTER_LABELS).map(([key, label]) => {
+              const tabIsLeave = isLeaveSemester(leaveSemesters, selectedGrade, key)
+              const isActive   = termFilter === label
+              return (
               <button key={key} onClick={() => onTermFilterChange(label)}
-                className={`pb-2 text-sm font-semibold border-b-2 transition-colors ${
-                  termFilter === label
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-400 dark:text-slate-500'
+                className={`pb-2 text-sm font-semibold border-b-2 transition-colors flex items-center gap-1 ${
+                  isActive && tabIsLeave
+                    ? 'border-purple-500 text-purple-600 dark:text-purple-400'
+                    : isActive
+                      ? 'border-blue-500 text-blue-600'
+                      : tabIsLeave
+                        ? 'border-transparent text-purple-400 dark:text-purple-500'
+                        : 'border-transparent text-gray-400 dark:text-slate-500'
                 }`}>
                 {label}
+                {tabIsLeave && <span className="text-[10px]">🔒</span>}
               </button>
-            ))}
+              )
+            })}
           </div>
 
           <div className="ml-auto pb-2 flex items-center gap-1">

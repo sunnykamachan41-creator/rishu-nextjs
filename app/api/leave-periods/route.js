@@ -1,9 +1,57 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { upsertLeavePeriod, removeLeavePeriod } from '@/lib/sheets'
+import { getRange, upsertLeavePeriod, removeLeavePeriod } from '@/lib/sheets'
+import { normalizeId } from '@/lib/transform'
+import { parseLeavePeriodRows } from '@/lib/leavePeriods'
 
 export const dynamic = 'force-dynamic'
+
+// ── ローカルヘルパー ─────────────────────────────────────────────────────────────
+
+function rowsToObjects(rows) {
+  if (!rows || rows.length < 2) return []
+  const [headers, ...body] = rows
+  return body.map(row =>
+    Object.fromEntries(headers.map((h, i) => [h, row[i] ?? '']))
+  )
+}
+
+// ── GET /api/leave-periods ────────────────────────────────────────────────────
+// 認証済みユーザーの休学期間を返す。キャッシュなし（シートから直接読む）。
+// Response: { rawLeavePeriods: { leave_start, leave_end }[], leaveSemesters: GradeSemester[] }
+
+export async function GET() {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.student_id) {
+      return NextResponse.json({ error: 'ログインが必要です' }, { status: 401 })
+    }
+    const normalizedStudentId = normalizeId(session.user.student_id)
+
+    const rows = await getRange('leave_periods').catch(() => [])
+    const rowObjects = rowsToObjects(rows)
+
+    const rawLeavePeriods = rowObjects
+      .filter(r => {
+        const sid = normalizeId(String(r.student_id ?? r.Student_ID ?? ''))
+        return sid === normalizedStudentId &&
+               (r.leave_start ?? r.Leave_Start) &&
+               (r.leave_end   ?? r.Leave_End)
+      })
+      .map(r => ({
+        leave_start: String(r.leave_start ?? r.Leave_Start ?? '').trim(),
+        leave_end:   String(r.leave_end   ?? r.Leave_End   ?? '').trim(),
+      }))
+
+    const leaveSemesters = parseLeavePeriodRows(rowObjects, normalizedStudentId)
+
+    return NextResponse.json({ rawLeavePeriods, leaveSemesters })
+  } catch (err) {
+    console.error('[GET /api/leave-periods]', err)
+    return NextResponse.json({ error: err.message }, { status: 500 })
+  }
+}
 
 /**
  * POST /api/leave-periods

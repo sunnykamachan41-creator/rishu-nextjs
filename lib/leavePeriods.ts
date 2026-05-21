@@ -42,19 +42,25 @@ export function parseGradeSemester(s: string | null | undefined): GradeSemester 
 }
 
 /**
- * Enumerate all leave semesters from start (inclusive) to end (exclusive).
- * Returns an empty array if start ≥ end (invalid data).
+ * Enumerate all leave semesters from start (inclusive) to end (inclusive).
+ *
+ * 例: start=(3,fall), end=(4,spring) → [(3,fall), (4,spring)]
+ *   3年秋・4年春がともに休学学期。復学は 4年秋。
  */
 export function enumerateLeaveSemesters(
   start: GradeSemester,
   end:   GradeSemester,
 ): GradeSemester[] {
+  const toNum = (g: number, s: GradeSemKey) => g * 2 + (s === 'spring' ? 0 : 1)
+  const endNum = toNum(end.grade, end.semester)
+
   const result: GradeSemester[] = []
   let { grade, semester } = start
   for (let guard = 0; guard < 30; guard++) {
-    if (grade === end.grade && semester === end.semester) break
-    if (grade > end.grade) break   // invalid: start is after end — bail out
+    const curNum = toNum(grade, semester)
+    if (curNum > endNum) break          // end を超えたら終了
     result.push({ grade, semester })
+    if (curNum === endNum) break        // end に達したら終了（inclusive）
     if (semester === 'spring') {
       semester = 'fall'
     } else {

@@ -19,16 +19,16 @@ function formatGS(s) {
   return `${gs.grade}年${gs.semester === 'spring' ? '春' : '秋'}`
 }
 
-/** leave_start / leave_end → 表示文字列 */
+/** leave_start / leave_end → 表示文字列（両端 inclusive） */
 function formatPeriod(leave_start, leave_end) {
-  return `${formatGS(leave_start)} 〜 ${formatGS(leave_end)}（復学）`
+  return `${formatGS(leave_start)} 〜 ${formatGS(leave_end)} 休学`
 }
 
-/** 開始 < 終了 かどうか（同一学期は NG） */
+/** 開始 ≤ 終了 かどうか（同一学期 = 1学期のみ休学 は OK） */
 function isValidRange(sg, ss, eg, es) {
   const startNum = sg * 2 + (ss === 'spring' ? 0 : 1)
   const endNum   = eg * 2 + (es === 'spring' ? 0 : 1)
-  return endNum > startNum
+  return endNum >= startNum
 }
 
 /** 休学学期数を算出 */
@@ -85,19 +85,19 @@ export default function LeavePeriodModal({ rawLeavePeriods = [], onSaved, onClos
   const [busy,  setBusy]  = useState(false)
   const [error, setError] = useState(null)
 
-  // SWR の再検証で rawLeavePeriods prop が更新されたとき（追加・削除直後）に
-  // ローカル state を同期する。addMode 中は上書きしない（フォーム入力を保護）。
+  // SWR（/api/leave-periods）が再検証されたとき、サーバーの最新データをローカルに同期する。
+  // /api/leave-periods はキャッシュなし（シート直読み）のため常に正確な値が返る。
+  // addMode 中は入力中のフォームを保護するため同期しない。
   useEffect(() => {
-    if (!addMode) {
-      setPeriods(rawLeavePeriods)
-    }
+    if (addMode) return
+    setPeriods(rawLeavePeriods)
   }, [rawLeavePeriods]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── 追加 ─────────────────────────────────────────────────────────────────────
 
   async function handleAdd() {
     if (!isValidRange(startGrade, startSem, endGrade, endSem)) {
-      setError('終了は開始より後の学期を選択してください')
+      setError('終了は開始と同じか、後の学期を選択してください')
       return
     }
     const leave_start = `${startGrade}_${startSem}`
@@ -121,6 +121,7 @@ export default function LeavePeriodModal({ rawLeavePeriods = [], onSaved, onClos
         { leave_start, leave_end },
       ])
       setAddMode(false)
+      // SWR を再検証して全コンシューマーに反映（/api/leave-periods はキャッシュなし）
       onSaved?.()
     } catch (e) {
       setError(e.message)
@@ -263,7 +264,7 @@ export default function LeavePeriodModal({ rawLeavePeriods = [], onSaved, onClos
                 {/* 終了 */}
                 <div>
                   <label className="text-xs text-gray-400 dark:text-slate-500 mb-1 block">
-                    終了（復学する学期 ← この学期は復学済み）
+                    終了（最後に休学する学期）
                   </label>
                   <div className="flex gap-2">
                     <Sel
@@ -288,12 +289,12 @@ export default function LeavePeriodModal({ rawLeavePeriods = [], onSaved, onClos
                     {formatPeriod(`${startGrade}_${startSem}`, `${endGrade}_${endSem}`)}
                   </div>
                   <div className="text-xs text-purple-500 dark:text-purple-400 mt-0.5">
-                    {semCount} 学期間（displayGrade が {Math.floor(semCount / 2)} 学年分補正されます）
+                    {semCount} 学期間の休学・履修推薦が {Math.floor(semCount / 2)} 学年分ずれます
                   </div>
                 </div>
               ) : (
                 <div className="text-xs text-red-400 mb-3 px-1">
-                  終了は開始より後の学期を選択してください
+                  終了は開始と同じか、後の学期を選択してください
                 </div>
               )}
 

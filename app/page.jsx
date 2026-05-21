@@ -26,6 +26,7 @@ import { useCreditSummary } from '@/lib/useCreditSummary'
 import { loadExemptions, saveExemptions } from '@/lib/exemptionStore'
 import CurriculumYearChangeModal from '@/components/CurriculumYearChangeModal'
 import { calculateDisplayGrade } from '@/lib/leavePeriods'
+import { useLeavePeriods } from '@/lib/useLeavePeriods'
 
 // ── SWR fetcher ───────────────────────────────────────────────────────────────
 
@@ -607,9 +608,14 @@ export default function Page() {
       })
   }, [toggling, mutate, data, selectedGrade, timetableTermFilter, department])
 
-  // ── 休学期間（leaveSemesters） ─────────────────────────────────────────────────
-  // サーバーが GradeSemester[] として返す。未取得時は空配列。
-  const leaveSemesters = data?.leaveSemesters ?? []
+  // ── 休学期間（leaveSemesters / rawLeavePeriods） ────────────────────────────
+  // 専用の SWR フック経由で取得。/api/leave-periods を直接読む（キャッシュなし）。
+  // 保存・削除後は mutateLeavePeriods() だけで全コンシューマーに反映される。
+  const {
+    leaveSemesters,
+    rawLeavePeriods,
+    mutateLeavePeriods,
+  } = useLeavePeriods()
 
   // displayGrade: 休学補正後の表示学年（ソート優先度にのみ使用。実データは不変）
   const displayGrade = calculateDisplayGrade(selectedGrade, leaveSemesters)
@@ -746,8 +752,8 @@ export default function Page() {
         enrollmentYear={enrollmentYear}
         onEnrollmentYearChange={handleEnrollmentYearChange}
         onChangeDepartment={handleStartDepartmentChange}
-        rawLeavePeriods={data?.rawLeavePeriods ?? []}
-        onLeavePeriodChange={() => mutate()}
+        rawLeavePeriods={rawLeavePeriods}
+        onLeavePeriodChange={mutateLeavePeriods}
       />
 
       {/* ── アプリヘッダー（アバター + 学年・学科） ──────────────── */}
