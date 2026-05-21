@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { fetchAllSheets, fetchRecognizedCoursesForStudent } from '@/lib/sheets'
 import { detectConflicts, computeSummary } from '@/lib/compute'
 import { buildEnrollmentMapsWithCourses, normalizeCourse, normalizeId } from '@/lib/transform'
+import { parseLeavePeriodRows } from '@/lib/leavePeriods'
 
 export const dynamic = 'force-dynamic'
 
@@ -53,12 +54,32 @@ export async function GET() {
         departmentRows,
         userDepartment,
         userCurriculumYear,
+        leavePeriodRows,
       },
       recognizedCourses,
     ] = await Promise.all([
       fetchAllSheets(studentId),
       fetchRecognizedCoursesForStudent(studentId),
     ])
+
+    // 休学期間を学生ごとに解析して GradeSemester[] に変換する
+    // normalizeId でヘッダー名の表記揺れ・全角半角差異を吸収する
+    const normalizedStudentId = normalizeId(studentId)
+    const leaveSemesters = parseLeavePeriodRows(leavePeriodRows ?? [], normalizedStudentId)
+
+    // この学生の生の休学期間行（UI での表示・編集用）
+    // student_id の比較は normalizeId で統一（シート側も upsertLeavePeriod で normalize 済み）
+    const rawLeavePeriods = (leavePeriodRows ?? [])
+      .filter(r => {
+        const sid = normalizeId(String(r.student_id ?? r.Student_ID ?? ''))
+        return sid === normalizedStudentId &&
+               (r.leave_start ?? r.Leave_Start) &&
+               (r.leave_end   ?? r.Leave_End)
+      })
+      .map(r => ({
+        leave_start: String(r.leave_start ?? r.Leave_Start ?? '').trim(),
+        leave_end:   String(r.leave_end   ?? r.Leave_End   ?? '').trim(),
+      }))
 
     const departments = (departmentRows ?? [])
       .map(r => ({
@@ -112,6 +133,8 @@ export async function GET() {
       departments,
       userDepartment:     userDepartment || null,
       userCurriculumYear: userCurriculumYear ?? null,
+      leaveSemesters,     // GradeSemester[] — 休学学期一覧（{ grade, semester }）
+      rawLeavePeriods,    // { leave_start, leave_end }[] — UI 編集用の生データ
       studentId,
       recognizedCourses:  recognizedCourses ?? [],
     })

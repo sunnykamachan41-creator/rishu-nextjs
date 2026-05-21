@@ -90,7 +90,7 @@ function isTermCourse(course) {
  */
 export default function AddCourseModal({
   day, period, lockedTerm, semester,
-  academicYear, grade, courses, existingEntries,
+  academicYear, grade, displayGrade, courses, existingEntries,
   onAdd, onClose,
 }) {
   const [query,          setQuery]         = useState('')
@@ -132,13 +132,14 @@ export default function AddCourseModal({
       : named
 
     if (!prioritizeGrade) return searched
-    // 標準受講学年（year === grade）の授業を優先
+    // 表示学年（displayGrade）に一致する year の授業を優先（休学補正済み）
+    const sortGrade = displayGrade ?? grade
     return [...searched].sort((a, b) => {
-      const aMatch = String(a.year) === String(grade) ? 0 : 1
-      const bMatch = String(b.year) === String(grade) ? 0 : 1
+      const aMatch = String(a.year) === String(sortGrade) ? 0 : 1
+      const bMatch = String(b.year) === String(sortGrade) ? 0 : 1
       return aMatch - bMatch
     })
-  }, [termFilteredCourses, query, grade, prioritizeGrade])
+  }, [termFilteredCourses, query, grade, displayGrade, prioritizeGrade])
 
   // ── ハンドラ ────────────────────────────────────────────────────────────────
 

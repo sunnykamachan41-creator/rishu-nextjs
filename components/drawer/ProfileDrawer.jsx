@@ -26,6 +26,8 @@ export default function ProfileDrawer({
   enrollmentYear,
   onEnrollmentYearChange,
   onChangeDepartment,
+  rawLeavePeriods = [],
+  onLeavePeriodChange,
 }) {
   const { data: session }                     = useSession()
   const { profile, isLoading, updateProfile } = useUserProfile()
@@ -127,6 +129,8 @@ export default function ProfileDrawer({
               onChangeDepartment={handleChangeDepartment}
               onEnrollmentYearChange={onEnrollmentYearChange}
               onUpdateProfile={updateProfile}
+              rawLeavePeriods={rawLeavePeriods}
+              onLeavePeriodChange={onLeavePeriodChange}
             />
             <DisplaySection />
             <DataSection profile={profile} />

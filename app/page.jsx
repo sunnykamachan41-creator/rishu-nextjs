@@ -23,7 +23,9 @@ import OnboardingModal from '@/components/OnboardingModal'
 import { buildDepartmentsMap, getDepartmentLabel } from '@/lib/departments'
 import { loadEntries } from '@/lib/enrollmentStore'
 import { useCreditSummary } from '@/lib/useCreditSummary'
-import { loadExemptions } from '@/lib/exemptionStore'
+import { loadExemptions, saveExemptions } from '@/lib/exemptionStore'
+import CurriculumYearChangeModal from '@/components/CurriculumYearChangeModal'
+import { calculateDisplayGrade } from '@/lib/leavePeriods'
 
 // ── SWR fetcher ───────────────────────────────────────────────────────────────
 
@@ -174,7 +176,12 @@ export default function Page() {
     if (selectedGrade > next) setSelectedGrade(next)
   }, [maxGrade, selectedGrade])
 
-  const handleEnrollmentYearChange = useCallback((year) => {
+  // curriculum_year 変更安全処理: 変更前の年度確認モーダル用 state
+  const [pendingEnrollmentYear,       setPendingEnrollmentYear]       = useState(null)
+  const [showCurriculumChangeModal,   setShowCurriculumChangeModal]   = useState(false)
+
+  // curriculum_year を実際に適用する（モーダル確認後・初回セット双方から呼ぶ）
+  const applyEnrollmentYear = useCallback((year) => {
     setEnrollmentYear(year)
     saveEnrollmentYear(year)
     // users シートにも反映（curriculum_year を更新）
@@ -183,9 +190,69 @@ export default function Page() {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ department_id: department, curriculum_year: year }),
-      }).catch(err => console.error('[handleEnrollmentYearChange] save failed:', err))
+      }).catch(err => console.error('[applyEnrollmentYear] save failed:', err))
     }
   }, [department])
+
+  // 入学年度変更ハンドラ:
+  //   - 既存の年度がある場合 → 安全確認モーダルを表示してから変更
+  //   - 初回セット（enrollmentYear=0/未設定）→ 直接適用
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const handleEnrollmentYearChange = useCallback((year) => {
+    if (enrollmentYear && year !== enrollmentYear) {
+      // 変更検知: データ削除が必要なため確認モーダルを表示
+      setPendingEnrollmentYear(year)
+      setShowCurriculumChangeModal(true)
+      return
+    }
+    applyEnrollmentYear(year)
+  }, [enrollmentYear, applyEnrollmentYear])
+
+  // curriculum_year 変更: 確定ハンドラ（curriculum_year 依存データを全削除 → 年度を変更）
+  const handleConfirmCurriculumChange = useCallback(async () => {
+    setShowCurriculumChangeModal(false)
+    if (pendingEnrollmentYear == null) return
+    const year = pendingEnrollmentYear
+    setPendingEnrollmentYear(null)
+
+    // 1. Sheets 上の curriculum_year 依存データを全削除
+    //    対象: enrollment / progress_auto / students_summary / GRADUATION_RESULT / additional_license_result
+    try {
+      const res = await fetch('/api/enrollment/clear-all', { method: 'POST' })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || `HTTP ${res.status}`)
+      }
+    } catch (e) {
+      console.error('[handleConfirmCurriculumChange] curriculum reset failed:', e)
+      // エラーでも年度変更は続行（削除失敗はリカバリ可能）
+    }
+
+    // 2. 内部 state を curriculum_year 基準でリセット
+    //    時間割・集計・フィルタ・認定免除など、すべて新しいカリキュラム前提で再スタート
+    setSelectedGrade(1)               // 学年選択を1年にリセット
+    setTab('timetable')               // メインタブに戻す
+    setEntrySyncKey(k => k + 1)       // 時間割エントリの強制再レンダー
+    setIncludeTemporary(false)        // 仮登録フラグをリセット
+    setCourseFilters(DEFAULT_FILTERS) // コースフィルタをリセット
+    setCourseQuery('')                // 検索クエリをリセット
+    // 単位認定（exemptions）は curriculum_year 依存のカテゴリマッピングを持つためリセット
+    saveExemptions([])
+    setExemptions([])
+
+    // 3. 年度を適用
+    applyEnrollmentYear(year)
+
+    // 4. SWR を再検証して UI に反映
+    // mutate は useSWR より前に宣言されているため deps に含めない（参照安定）
+    mutate()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingEnrollmentYear, applyEnrollmentYear])
+
+  const handleCancelCurriculumChange = useCallback(() => {
+    setShowCurriculumChangeModal(false)
+    setPendingEnrollmentYear(null)
+  }, [])
 
   // timetable エントリ変更時に useCreditSummary の再計算をトリガーする
   const [entrySyncKey, setEntrySyncKey] = useState(0)
@@ -540,6 +607,13 @@ export default function Page() {
       })
   }, [toggling, mutate, data, selectedGrade, timetableTermFilter, department])
 
+  // ── 休学期間（leaveSemesters） ─────────────────────────────────────────────────
+  // サーバーが GradeSemester[] として返す。未取得時は空配列。
+  const leaveSemesters = data?.leaveSemesters ?? []
+
+  // displayGrade: 休学補正後の表示学年（ソート優先度にのみ使用。実データは不変）
+  const displayGrade = calculateDisplayGrade(selectedGrade, leaveSemesters)
+
   // ── New-schema: statusMap（早期 return より前で呼ぶ必要あり） ────────────────
   // data が null のときも useMemo は必ず呼ばれる（Rules of Hooks）
   const statusMap = useMemo(
@@ -672,6 +746,8 @@ export default function Page() {
         enrollmentYear={enrollmentYear}
         onEnrollmentYearChange={handleEnrollmentYearChange}
         onChangeDepartment={handleStartDepartmentChange}
+        rawLeavePeriods={data?.rawLeavePeriods ?? []}
+        onLeavePeriodChange={() => mutate()}
       />
 
       {/* ── アプリヘッダー（アバター + 学年・学科） ──────────────── */}
@@ -712,6 +788,16 @@ export default function Page() {
         />
       )}
 
+      {/* curriculum_year 変更確認モーダル */}
+      {showCurriculumChangeModal && (
+        <CurriculumYearChangeModal
+          fromYear={enrollmentYear}
+          toYear={pendingEnrollmentYear}
+          onConfirm={handleConfirmCurriculumChange}
+          onCancel={handleCancelCurriculumChange}
+        />
+      )}
+
       {/* Content */}
       <div className="flex-1 overflow-hidden">
         {tab === 'timetable' && (
@@ -738,6 +824,8 @@ export default function Page() {
             studentId={studentId}
             department={department}
             onBulkStatusDone={() => mutate()}
+            leaveSemesters={leaveSemesters}
+            displayGrade={displayGrade}
           />
         )}
         {tab === 'courses' && (

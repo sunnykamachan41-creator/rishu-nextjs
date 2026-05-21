@@ -12,6 +12,7 @@ import PeriodSettingsModal from './PeriodSettingsModal'
 import CourseModal from './CourseModal'
 import { isCourseEligible } from '@/lib/eligibility'
 import { STATUS_CONFIG } from '@/lib/enrollmentStatus'
+import { isLeaveSemester } from '@/lib/leavePeriods'
 
 // ── 定数 ──────────────────────────────────────────────────────────────────────
 
@@ -381,6 +382,9 @@ export default function TimetableV2({
   onBulkStatusDone = null,   // () => void — called after bulk update completes (triggers SWR revalidate)
   // [DEV] 手動再計算
   onRecalculate    = null,   // async () => void — called when 再計算 button is pressed
+  // 休学期間 + 表示学年
+  leaveSemesters   = [],     // GradeSemester[] — 休学学期一覧 ({ grade, semester })
+  displayGrade     = null,   // number | null — 休学補正後の表示学年（ソート優先度用）
 }) {
   const semester     = termFilter === '春学期' ? 'spring' : 'fall'
   const [oddT, evnT] = TERM_PAIR[semester]
@@ -396,6 +400,9 @@ export default function TimetableV2({
 
   // academicYear が latestYear を超えている = 将来年度シミュレーションモード
   const isFutureYearMode = academicYear != null && academicYear > latestYear
+
+  // 現在の学年・学期が休学中かどうか（履修登録をロック）
+  const isOnLeave = isLeaveSemester(leaveSemesters, selectedGrade, semester)
 
   const semesterTerms = useMemo(() => semester === 'spring'
     ? ['春学期', '通年', '第1ターム', '第2ターム']
@@ -619,6 +626,8 @@ export default function TimetableV2({
   // ひとつもない場合は警告トーストを表示するが、モーダルは開く。
   // （カタログが古い年度のみの場合でも登録できるようにするため）
   const openModal = useCallback((day, period, lockedTerm) => {
+    // 休学中は履修登録不可
+    if (isOnLeave) return
     if (academicYear != null) {
       const coursesWithAY = (courses ?? []).filter(c => c.academic_year != null)
       const hasMatch = coursesWithAY.some(c => c.academic_year === academicYear)
@@ -630,7 +639,7 @@ export default function TimetableV2({
       }
     }
     setAddModal({ day, period, lockedTerm })
-  }, [academicYear, courses])
+  }, [academicYear, courses, isOnLeave])
 
   // 一括ステータス変更ハンドラ
   const handleBulkToggle = useCallback((classId) => {
@@ -919,6 +928,20 @@ export default function TimetableV2({
         </div>
       </div>
 
+      {/* ── 休学中バナー（グリッド上部の補足帯） ────────────────────────────── */}
+      {isOnLeave && (
+        <div className="mx-2 mb-1 flex-shrink-0">
+          <div className="flex items-center gap-2 bg-purple-100 dark:bg-purple-500/15
+                          border border-purple-200 dark:border-purple-500/30
+                          rounded-xl px-3 py-1.5">
+            <span className="text-sm flex-shrink-0">🏠</span>
+            <p className="text-[11px] font-bold text-purple-700 dark:text-purple-300 tracking-wide uppercase">
+              LEAVE OF ABSENCE — 休学中
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ── 将来年度シミュレーション バナー ────────────────────────────────────── */}
       {isFutureYearMode && (
         <div className="mx-2 mb-1 flex-shrink-0">
@@ -964,7 +987,7 @@ export default function TimetableV2({
 
       {/* ── グリッド（ResizeObserver で均等セル高さを保証） ──────────────────── */}
       <div className="flex-1 min-h-0 px-2 pt-2 pb-1">
-        <div className="h-full bg-white dark:bg-[#1a1d27] rounded-2xl overflow-hidden shadow-sm dark:shadow-none flex flex-col">
+        <div className="relative h-full bg-white dark:bg-[#1a1d27] rounded-2xl overflow-hidden shadow-sm dark:shadow-none flex flex-col">
 
           {/* ── 曜日ヘッダー行 ───────────────────────────────────────────────── */}
           <div className="flex flex-shrink-0 border-b border-gray-100 dark:border-white/[0.06]">
@@ -1111,6 +1134,50 @@ export default function TimetableV2({
               </div>
             ))}
           </div>
+
+          {/* ── 休学中オーバーレイ ─────────────────────────────────────────── */}
+          {isOnLeave && (
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-5
+                            bg-white/75 dark:bg-[#1a1d27]/80 backdrop-blur-[3px] rounded-2xl
+                            pointer-events-auto select-none">
+
+              {/* アイコンリング */}
+              <div className="w-20 h-20 rounded-full
+                              bg-purple-100 dark:bg-purple-500/20
+                              border-2 border-purple-200 dark:border-purple-500/40
+                              flex items-center justify-center shadow-lg">
+                <span className="text-4xl" aria-hidden>🏠</span>
+              </div>
+
+              {/* テキスト */}
+              <div className="flex flex-col items-center gap-1.5 px-8 text-center">
+                <p className="text-xl font-black text-purple-800 dark:text-purple-200 tracking-tight">
+                  休学中
+                </p>
+                <p className="text-sm font-semibold text-purple-600 dark:text-purple-300">
+                  この学期は履修登録できません
+                </p>
+                <p className="text-[11px] text-purple-400 dark:text-purple-500 mt-1 leading-relaxed">
+                  休学期間の変更は左メニュー →<br />所属 → 休学期間 から行えます
+                </p>
+              </div>
+
+              {/* ロックアイコン */}
+              <div className="flex items-center gap-1.5 bg-purple-100 dark:bg-purple-500/15
+                              border border-purple-200 dark:border-purple-500/25
+                              rounded-full px-4 py-1.5">
+                <svg className="w-3 h-3 text-purple-500 dark:text-purple-400 flex-shrink-0"
+                     fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd"
+                    d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
+                    clipRule="evenodd" />
+                </svg>
+                <span className="text-[11px] font-semibold text-purple-600 dark:text-purple-400">
+                  履修ロック中
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1139,10 +1206,14 @@ export default function TimetableV2({
               </div>
             </button>
             <button
-              onClick={() => setExtraAddOpen(true)}
-              className="w-6 h-6 flex items-center justify-center rounded-lg
-                         text-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors mr-1"
-              title="時間外授業を追加"
+              onClick={() => !isOnLeave && setExtraAddOpen(true)}
+              disabled={isOnLeave}
+              className={`w-6 h-6 flex items-center justify-center rounded-lg
+                         transition-colors mr-1
+                         ${isOnLeave
+                           ? 'text-gray-300 dark:text-slate-600 cursor-not-allowed'
+                           : 'text-blue-400 hover:text-blue-600 hover:bg-blue-50'}`}
+              title={isOnLeave ? '休学中は履修登録できません' : '時間外授業を追加'}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1461,6 +1532,7 @@ export default function TimetableV2({
           semester={semester}
           academicYear={academicYear}
           grade={selectedGrade}
+          displayGrade={displayGrade ?? selectedGrade}
           courses={courses}
           existingEntries={entries}
           onAdd={handleAdd}
@@ -1496,6 +1568,7 @@ export default function TimetableV2({
         <AddExtraModal
           courses={courses}
           grade={selectedGrade}
+          displayGrade={displayGrade ?? selectedGrade}
           semester={semester}
           academicYear={academicYear}
           selectedIds={selectedIds}
@@ -1563,7 +1636,7 @@ function ExtraCourseDetailModal({ course, onUnenroll, onClose }) {
 
 // ── AddExtraModal ─────────────────────────────────────────────────────────────
 
-function AddExtraModal({ courses, grade, semester, academicYear, selectedIds, onAdd, onClose }) {
+function AddExtraModal({ courses, grade, displayGrade, semester, academicYear, selectedIds, onAdd, onClose }) {
   const [query,          setQuery]          = useState('')
   const [preview,        setPreview]        = useState(null)
   const [prioritizeGrade, setPrioritizeGrade] = useState(true)  // 学年優先ソート（デフォルトON）
@@ -1589,13 +1662,14 @@ function AddExtraModal({ courses, grade, semester, academicYear, selectedIds, on
       : extraList
 
     if (!prioritizeGrade) return base
-    // 学年完全一致を優先（grade に一致する year の授業を上に）
+    // 表示学年（displayGrade）に一致する year の授業を優先（休学補正済み）
+    const sortGrade = displayGrade ?? grade
     return [...base].sort((a, b) => {
-      const aMatch = String(a.year) === String(grade) ? 0 : 1
-      const bMatch = String(b.year) === String(grade) ? 0 : 1
+      const aMatch = String(a.year) === String(sortGrade) ? 0 : 1
+      const bMatch = String(b.year) === String(sortGrade) ? 0 : 1
       return aMatch - bMatch
     })
-  }, [extraList, query, grade, prioritizeGrade])
+  }, [extraList, query, grade, displayGrade, prioritizeGrade])
 
   return (
     <>

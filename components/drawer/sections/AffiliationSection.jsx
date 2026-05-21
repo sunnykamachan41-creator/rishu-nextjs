@@ -4,6 +4,7 @@ import DrawerSection       from '../ui/DrawerSection'
 import DrawerItem          from '../ui/DrawerItem'
 import EnrollmentYearModal from '../modals/EnrollmentYearModal'
 import TextEditModal       from '../modals/TextEditModal'
+import LeavePeriodModal    from '../modals/LeavePeriodModal'
 
 function DeptIcon() {
   return (
@@ -36,6 +37,15 @@ function CalendarIcon() {
   )
 }
 
+function LeaveIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round"
+        d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+    </svg>
+  )
+}
+
 export default function AffiliationSection({
   departmentLabel,        // 表示用ラベル（例: "英語教育専攻"）
   enrollmentYear,
@@ -44,9 +54,12 @@ export default function AffiliationSection({
   onChangeDepartment,
   onEnrollmentYearChange,
   onUpdateProfile,
+  rawLeavePeriods = [],
+  onLeavePeriodChange,
 }) {
   const [yearModalOpen,  setYearModalOpen]  = useState(false)
   const [minorModalOpen, setMinorModalOpen] = useState(false)
+  const [leaveModalOpen, setLeaveModalOpen] = useState(false)
 
   const handleMinorSave = async (value) => {
     await onUpdateProfile({ minor: value })
@@ -85,6 +98,16 @@ export default function AffiliationSection({
           chevron
           onPress={() => setYearModalOpen(true)}
         />
+
+        {/* 休学期間 */}
+        <DrawerItem
+          icon={<LeaveIcon />}
+          label="休学期間"
+          value={rawLeavePeriods.length > 0 ? `${rawLeavePeriods.length}件` : 'なし'}
+          sublabel="休学中は履修登録がロックされます"
+          chevron
+          onPress={() => setLeaveModalOpen(true)}
+        />
       </DrawerSection>
 
       {yearModalOpen && (
@@ -102,6 +125,14 @@ export default function AffiliationSection({
           current={profile?.minor ?? ''}
           onSave={handleMinorSave}
           onClose={() => setMinorModalOpen(false)}
+        />
+      )}
+
+      {leaveModalOpen && (
+        <LeavePeriodModal
+          rawLeavePeriods={rawLeavePeriods}
+          onSaved={onLeavePeriodChange}
+          onClose={() => setLeaveModalOpen(false)}
         />
       )}
     </>
