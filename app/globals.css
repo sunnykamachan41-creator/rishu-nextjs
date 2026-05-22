@@ -10,6 +10,12 @@
 
 html, body, #__next {
   height: 100%;
+  /* PWA: ラバーバンド（バウンス）を完全に無効化 */
+  overflow: hidden;
+  overscroll-behavior: none;
+  /* iOS Safari 追加対策 */
+  -webkit-overflow-scrolling: auto;
+  touch-action: pan-x pan-y;
 }
 
 /* ── デザイントークン ──────────────────────────────────────────────────────── */

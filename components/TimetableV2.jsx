@@ -558,6 +558,27 @@ export default function TimetableV2({
     try { localStorage.setItem(CELL_STYLE_KEY, value) } catch {}
   }, [])
 
+  // ── 学期スワイプ（左 → 秋学期 / 右 → 春学期） ────────────────────────────
+  const termSwipeX = useRef(null)
+  const termSwipeY = useRef(null)
+
+  const handleTermSwipeStart = useCallback((e) => {
+    termSwipeX.current = e.touches[0].clientX
+    termSwipeY.current = e.touches[0].clientY
+  }, [])
+
+  const handleTermSwipeEnd = useCallback((e) => {
+    if (termSwipeX.current === null) return
+    const dx = e.changedTouches[0].clientX - termSwipeX.current
+    const dy = Math.abs(e.changedTouches[0].clientY - (termSwipeY.current ?? 0))
+    termSwipeX.current = null
+    termSwipeY.current = null
+    // 縦スクロールと区別: 横移動が 50px 以上 かつ 縦移動が 60px 未満
+    if (Math.abs(dx) < 50 || dy > 60) return
+    if (dx < 0 && termFilter !== '秋学期') onTermFilterChange('秋学期')
+    if (dx > 0 && termFilter !== '春学期') onTermFilterChange('春学期')
+  }, [termFilter, onTermFilterChange])
+
   // ── セル高さを動的計算（均等・スクロールなし） ─────────────────────────────
   const rowsRef = useRef(null)
   const [cellH, setCellH] = useState(72)
@@ -931,7 +952,10 @@ export default function TimetableV2({
       )}
 
       {/* ── グリッド（ResizeObserver で均等セル高さを保証） ──────────────────── */}
-      <div className="flex-1 min-h-0 px-2 pt-2 pb-1">
+      <div className="flex-1 min-h-0 px-2 pt-2 pb-1"
+        onTouchStart={handleTermSwipeStart}
+        onTouchEnd={handleTermSwipeEnd}
+      >
         <div className="relative h-full bg-white dark:bg-[#1a1d27] rounded-2xl overflow-hidden shadow-sm dark:shadow-none flex flex-col">
 
           {/* ── 曜日ヘッダー行 ───────────────────────────────────────────────── */}
