@@ -163,6 +163,29 @@ export default function CatalogTab({
     onDetail: setModal,
   }), [filtered, selectedSet, statusMap, temporaryIds, recognizedCourseIds])
 
+  // ── raw カテゴリスワイプ ───────────────────────────────────────────────────────
+  const allCats   = useMemo(() => ['__all__', ...rawCategories], [rawCategories])
+  const catSwipeX = useRef(null)
+  const catSwipeY = useRef(null)
+
+  const handleCatSwipeStart = useCallback((e) => {
+    catSwipeX.current = e.touches[0].clientX
+    catSwipeY.current = e.touches[0].clientY
+  }, [])
+
+  const handleCatSwipeEnd = useCallback((e) => {
+    if (catSwipeX.current === null) return
+    const dx = e.changedTouches[0].clientX - catSwipeX.current
+    const dy = Math.abs(e.changedTouches[0].clientY - (catSwipeY.current ?? 0))
+    catSwipeX.current = null
+    catSwipeY.current = null
+    if (Math.abs(dx) < 50 || dy > 60) return
+    const idx = allCats.indexOf(rawCat)
+    if (idx === -1) return
+    if (dx < 0 && idx < allCats.length - 1) handleRawCatChange(allCats[idx + 1])
+    if (dx > 0 && idx > 0)                  handleRawCatChange(allCats[idx - 1])
+  }, [allCats, rawCat, handleRawCatChange])
+
   // ── ResizeObserver でリストコンテナのサイズを取得 ─────────────────────────────
   const listContainerRef = useRef(null)
   const [listSize, setListSize] = useState({ width: 375, height: 500 })
@@ -291,7 +314,10 @@ export default function CatalogTab({
       </div>
 
       {/* ── 仮想スクロールリスト ────────────────────────────────────────────── */}
-      <div ref={listContainerRef} className="flex-1 min-h-0">
+      <div ref={listContainerRef} className="flex-1 min-h-0"
+        onTouchStart={handleCatSwipeStart}
+        onTouchEnd={handleCatSwipeEnd}
+      >
         {isLoading ? (
           <div className="flex items-center justify-center h-32">
             <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />

@@ -52,8 +52,32 @@ export default function GraduationTabV2({
     onModeChange?.(m)
   }, [onModeChange])
 
+  const MODES = ['graduation', 'license']
+  const swipeX = useRef(null)
+  const swipeY = useRef(null)
+
+  const handleSwipeStart = useCallback((e) => {
+    swipeX.current = e.touches[0].clientX
+    swipeY.current = e.touches[0].clientY
+  }, [])
+
+  const handleSwipeEnd = useCallback((e) => {
+    if (swipeX.current === null) return
+    const dx = e.changedTouches[0].clientX - swipeX.current
+    const dy = Math.abs(e.changedTouches[0].clientY - (swipeY.current ?? 0))
+    swipeX.current = null
+    swipeY.current = null
+    if (Math.abs(dx) < 50 || dy > 60) return
+    const idx = MODES.indexOf(mode)
+    if (dx < 0 && idx < MODES.length - 1) handleModeChange(MODES[idx + 1])
+    if (dx > 0 && idx > 0)               handleModeChange(MODES[idx - 1])
+  }, [mode, handleModeChange]) // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col"
+      onTouchStart={handleSwipeStart}
+      onTouchEnd={handleSwipeEnd}
+    >
       {/* 再集計バナー */}
       <RecalcBanner
         needsRecalc={needsRecalc}

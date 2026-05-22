@@ -329,7 +329,7 @@ export default function Page() {
   // 未保存の変更がある間は自動 refresh を停止して楽観的 UI を保護する
   const swrKey = studentId ? '/api/data' : null
   const { data, error, mutate, isLoading } = useSWR(swrKey, fetcher, {
-    refreshInterval:   hasPendingChanges ? 0 : 30_000,
+    refreshInterval:   hasPendingChanges ? 0 : 5 * 60_000,
     revalidateOnFocus: !hasPendingChanges,
     dedupingInterval:  5_000,
   })
