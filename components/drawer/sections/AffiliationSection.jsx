@@ -3,7 +3,6 @@ import { useState } from 'react'
 import DrawerSection       from '../ui/DrawerSection'
 import DrawerItem          from '../ui/DrawerItem'
 import EnrollmentYearModal from '../modals/EnrollmentYearModal'
-import TextEditModal       from '../modals/TextEditModal'
 import LeavePeriodModal    from '../modals/LeavePeriodModal'
 
 function DeptIcon() {
@@ -46,6 +45,15 @@ function LeaveIcon() {
   )
 }
 
+function ExemptionIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round"
+        d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+    </svg>
+  )
+}
+
 export default function AffiliationSection({
   departmentLabel,        // 表示用ラベル（例: "英語教育専攻"）
   enrollmentYear,
@@ -56,15 +64,12 @@ export default function AffiliationSection({
   onUpdateProfile,
   rawLeavePeriods = [],
   onLeavePeriodChange,
+  onOpenMinorSection = null,
+  onOpenExemption    = null,
+  exemptionCount     = 0,
 }) {
   const [yearModalOpen,  setYearModalOpen]  = useState(false)
-  const [minorModalOpen, setMinorModalOpen] = useState(false)
   const [leaveModalOpen, setLeaveModalOpen] = useState(false)
-
-  const handleMinorSave = async (value) => {
-    await onUpdateProfile({ minor: value })
-    setMinorModalOpen(false)
-  }
 
   return (
     <>
@@ -79,14 +84,24 @@ export default function AffiliationSection({
           onPress={onChangeDepartment}
         />
 
-        {/* 副免許 */}
+        {/* 副免許 → 卒業要件 ② に飛ぶ */}
         <DrawerItem
           icon={<BookIcon />}
           label="副免許"
           value={isLoading ? '読込中…' : (profile?.minor || '未設定')}
-          sublabel="取得予定の副免許"
+          sublabel="② 副免許・資格で管理"
           chevron
-          onPress={() => setMinorModalOpen(true)}
+          onPress={onOpenMinorSection ?? undefined}
+        />
+
+        {/* 単位認定 → カタログタブに飛ぶ */}
+        <DrawerItem
+          icon={<ExemptionIcon />}
+          label="単位認定"
+          value={exemptionCount > 0 ? `${exemptionCount}件` : 'なし'}
+          sublabel="認定済み単位を管理"
+          chevron
+          onPress={onOpenExemption ?? undefined}
         />
 
         {/* 入学年度 */}
@@ -115,16 +130,6 @@ export default function AffiliationSection({
           current={enrollmentYear}
           onSave={(y) => { onEnrollmentYearChange(y); setYearModalOpen(false) }}
           onClose={() => setYearModalOpen(false)}
-        />
-      )}
-
-      {minorModalOpen && (
-        <TextEditModal
-          title="副免許を編集"
-          placeholder="例：英語、音楽、幼稚園…"
-          current={profile?.minor ?? ''}
-          onSave={handleMinorSave}
-          onClose={() => setMinorModalOpen(false)}
         />
       )}
 

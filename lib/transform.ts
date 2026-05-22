@@ -61,6 +61,8 @@ export interface NormalizedEnrollment {
   /** 仮登録フラグ: academic_year が現実世界の現在年度より未来の場合 true。
    *  TRUE の場合は卒業要件・単位集計から除外される（「仮登録を含む」モード時は加算）。 */
   is_temporary: boolean
+  /** 自由記述メモ（enrollment シートの memo 列）。未入力なら null。 */
+  memo: string | null
 }
 
 /**
@@ -244,6 +246,9 @@ export function normalizeEnrollmentRow(
     const rawTemp    = (row.is_temporary || '').trim().toUpperCase()
     const is_temporary = rawTemp === 'TRUE' || rawTemp === '1'
 
+    const rawMemo = row.memo ?? ''
+    const memo    = rawMemo.trim() ? rawMemo.trim() : null
+
     return {
       class_id:      classId,
       course_id:     courseId,
@@ -252,6 +257,7 @@ export function normalizeEnrollmentRow(
       status,
       academic_year: Number.isFinite(ayNum) ? ayNum : null,
       is_temporary,
+      memo,
     }
   } else {
     // Legacy: class_id + selected
@@ -270,6 +276,7 @@ export function normalizeEnrollmentRow(
       status:        'COMPLETED',
       academic_year: null,
       is_temporary:  false,
+      memo:          null,
     }
   }
 }

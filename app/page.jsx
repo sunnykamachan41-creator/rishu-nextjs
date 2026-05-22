@@ -27,6 +27,7 @@ import { loadExemptions, saveExemptions } from '@/lib/exemptionStore'
 import CurriculumYearChangeModal from '@/components/CurriculumYearChangeModal'
 import { calculateDisplayGrade } from '@/lib/leavePeriods'
 import { useLeavePeriods } from '@/lib/useLeavePeriods'
+import PreEnrollMigrateModal from '@/components/PreEnrollMigrateModal'
 
 // ── SWR fetcher ───────────────────────────────────────────────────────────────
 
@@ -60,6 +61,9 @@ export default function Page() {
   const [tab, setTab] = useState('timetable')
   const [toggling, setToggling] = useState(null) // classId currently being toggled
   const [drawerOpen, setDrawerOpen] = useState(false)
+  // 卒業要件タブの初期モード（'graduation' | 'license'）。
+  // ドロワーの副免許ボタンから直接 ② 副免許・資格へ飛ぶために使用。
+  const [requirementsMode, setRequirementsMode] = useState('graduation')
 
   // ── 左端スワイプでDrawerを開く ────────────────────────────────────────────
   const edgeSwipeStartX = useRef(null)
@@ -306,6 +310,21 @@ export default function Page() {
   const [recalcBusy,   setRecalcBusy]   = useState(false)
   const [recalcError,  setRecalcError]  = useState(null)
 
+  // ── 仮登録移行モーダル ──────────────────────────────────────────────────────────
+  // year 更新検知: localStorage で前回確認年度を保存し、増加時に is_temporary 行を確認する。
+  // { oldYear: number, newYear: number, tempEnrollments: NormalizedEnrollment[] } | null
+  const [migrateModalData, setMigrateModalData] = useState(null)
+  const [migrating,        setMigrating]        = useState(false)
+  // スキップ後にバナーから再開できるよう、最後に検知した移行情報を保持
+  const [migrateAvailable, setMigrateAvailable] = useState(null)
+  // 同一 studentId+latestYear の組み合わせで重複チェックを防ぐ ref
+  const migrateLastChecked = useRef('')
+
+  // studentId が変わったらチェック済みフラグをリセット
+  useEffect(() => {
+    migrateLastChecked.current = ''
+  }, [studentId])
+
   // studentId（email）が確定するまで fetch しない（null キーは SWR をスキップ）
   // 未保存の変更がある間は自動 refresh を停止して楽観的 UI を保護する
   const swrKey = studentId ? '/api/data' : null
@@ -382,6 +401,75 @@ export default function Page() {
     catalogYearInitialized.current = true
     setCatalogYear(latestCourseYear)
   }, [latestCourseYear])
+
+  // ── 年度更新検知: 仮登録移行モーダルを表示するか判定 ────────────────────────────
+  // 初回訪問時は storedYear を latestCourseYear に設定してスキップ（移行対象なし）。
+  // storedYear < latestCourseYear かつ is_temporary エントリが存在する場合にモーダル表示。
+  useEffect(() => {
+    if (!latestCourseYear || !studentId || !data) return
+    const checkKey = `${studentId}:${latestCourseYear}`
+    if (migrateLastChecked.current === checkKey) return
+    migrateLastChecked.current = checkKey
+
+    const lsKey = `rishu_last_migrated_year_${studentId}`
+    let storedYear = 0
+    try { storedYear = parseInt(localStorage.getItem(lsKey) || '0', 10) || 0 } catch {}
+
+    // 初回訪問 → 現在年度を記録してスキップ
+    if (storedYear === 0) {
+      try { localStorage.setItem(lsKey, String(latestCourseYear)) } catch {}
+      return
+    }
+
+    // 年度が上がった
+    if (latestCourseYear > storedYear) {
+      const tempEnrollments = (data.enrollment ?? []).filter(e => e.is_temporary)
+      if (tempEnrollments.length > 0) {
+        const info = { oldYear: storedYear, newYear: latestCourseYear, tempEnrollments }
+        // モーダル表示（localStorage 更新はユーザーアクション後）
+        setMigrateModalData(info)
+        setMigrateAvailable(info)  // バナーからの再開用
+      } else {
+        // 仮登録なし → 即座に年度更新を記録
+        try { localStorage.setItem(lsKey, String(latestCourseYear)) } catch {}
+      }
+    }
+  }, [latestCourseYear, studentId, data]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 移行確定: API 呼び出し → localStorage 更新 → SWR revalidate
+  const handleMigrateConfirm = useCallback(async (migrableClassIds) => {
+    if (migrating || !migrateModalData) return
+    setMigrating(true)
+    try {
+      const res = await fetch('/api/pre-enrollment/migrate', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          classIds:      migrableClassIds,
+          newLatestYear: migrateModalData.newYear,
+        }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        throw new Error(d.error || `HTTP ${res.status}`)
+      }
+      // 成功: localStorage 更新 → 再集計フラグ → モーダルを閉じる → SWR 再検証
+      try { localStorage.setItem(`rishu_last_migrated_year_${studentId}`, String(migrateModalData.newYear)) } catch {}
+      setMigrateModalData(null)
+      setNeedsRecalc(true)
+      mutate()
+    } catch (e) {
+      console.error('[handleMigrateConfirm]', e)
+    } finally {
+      setMigrating(false)
+    }
+  }, [migrating, migrateModalData, studentId, mutate])
+
+  // 移行スキップ: この年度遷移はスキップ済みとして記録
+  const handleMigrateSkip = useCallback(() => {
+    try { localStorage.setItem(`rishu_last_migrated_year_${studentId}`, String(migrateModalData?.newYear ?? latestCourseYear)) } catch {}
+    setMigrateModalData(null)
+  }, [migrateModalData, studentId, latestCourseYear])
 
   // ── New-schema: status change handler ────────────────────────────────────────
   // Used when enrollmentVersion === 'new'.
@@ -641,6 +729,52 @@ export default function Page() {
     mutate()  // サーバー値に戻す
   }, [mutate])
 
+  // ── ドロワー → タブナビゲーション ────────────────────────────────────────────
+  // 副免許ボタン: ドロワーを閉じて卒業要件タブの ② 副免許・資格へ
+  const handleOpenMinorSection = useCallback(() => {
+    setDrawerOpen(false)
+    setRequirementsMode('license')
+    setTab('requirements')
+  }, [])
+
+  // 単位認定ボタン: ドロワーを閉じてカタログタブの単位認定モーダルを開く
+  const handleOpenExemption = useCallback(() => {
+    setDrawerOpen(false)
+    setTab('courses')
+    // タブ切り替えアニメーション後にモーダルを開く
+    setTimeout(() => setExemptionOpen(true), 50)
+  }, [])
+
+  // ── メモ保存 ──────────────────────────────────────────────────────────────────
+  // CourseModal から「メモを保存する」を押したとき呼ばれる。
+  // PATCH /api/enrollment/memo を直接叩いて即時保存。pendingChanges を経由しない。
+  // 成功時は楽観的 UI 更新で SWR キャッシュに反映。
+  // 失敗時は Error をスロー（CourseModal 側でキャッチして表示）。
+  const handleMemoSave = useCallback(async (classId, memo) => {
+    // 楽観的 UI 更新（先に反映しておく）
+    mutate(current => {
+      if (!current) return current
+      return {
+        ...current,
+        enrollment: (current.enrollment ?? []).map(e =>
+          e.class_id === classId ? { ...e, memo } : e
+        ),
+      }
+    }, { revalidate: false })
+
+    const res = await fetch('/api/enrollment/memo', {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ classId, memo }),
+    })
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      // 楽観的更新をロールバック
+      mutate()
+      throw new Error(d.error || `HTTP ${res.status}`)
+    }
+  }, [mutate])
+
   // タブ切替: 時間割タブから離れるとき未保存があれば自動保存（fire-and-forget）
   // ※ hasPendingChanges / saveBusy / handleSave が確定した後に定義する（TDZ 回避）
   const handleTabChange = useCallback((newTab) => {
@@ -823,6 +957,9 @@ export default function Page() {
         onChangeDepartment={handleStartDepartmentChange}
         rawLeavePeriods={rawLeavePeriods}
         onLeavePeriodChange={mutateLeavePeriods}
+        onOpenMinorSection={handleOpenMinorSection}
+        onOpenExemption={handleOpenExemption}
+        exemptionCount={exemptions.length}
       />
 
       {/* ── アプリヘッダー（アバター + 学年・学科） ──────────────── */}
@@ -909,6 +1046,7 @@ export default function Page() {
         </div>
       )}
 
+
       {/* Content */}
       <div className="flex-1 overflow-hidden">
         {tab === 'timetable' && (
@@ -935,6 +1073,7 @@ export default function Page() {
             studentId={studentId}
             department={department}
             onBulkStatusDone={() => mutate()}
+            onMemoSave={handleMemoSave}
             leaveSemesters={leaveSemesters}
             displayGrade={displayGrade}
           />
@@ -999,6 +1138,8 @@ export default function Page() {
               onRecalculate={handleRecalculate}
               recalcBusy={recalcBusy}
               recalcError={recalcError}
+              initialMode={requirementsMode}
+              onModeChange={setRequirementsMode}
             />
           </div>
         )}
@@ -1069,6 +1210,19 @@ export default function Page() {
           })}
         </div>
       </nav>
+
+      {/* ── 仮登録移行モーダル ──────────────────────────────────────────────────── */}
+      {migrateModalData && (
+        <PreEnrollMigrateModal
+          courses={data?.courses ?? []}
+          tempEnrollments={migrateModalData.tempEnrollments}
+          newLatestYear={migrateModalData.newYear}
+          oldLatestYear={migrateModalData.oldYear}
+          onConfirm={handleMigrateConfirm}
+          onSkip={handleMigrateSkip}
+          migrating={migrating}
+        />
+      )}
     </div>
   )
 }

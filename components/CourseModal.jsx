@@ -1,4 +1,5 @@
 'use client'
+import { useState, useRef, useCallback } from 'react'
 import { STATUS_CONFIG, DIRECT_STATUSES } from '@/lib/enrollmentStatus'
 
 const TERM_COLORS = {
@@ -6,6 +7,8 @@ const TERM_COLORS = {
   '秋学期': 'bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-300',
   '通年': 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300',
 }
+
+const MEMO_MAX = 200
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -18,18 +21,60 @@ const TERM_COLORS = {
  * @param {()=>void} props.onToggle          - legacy toggle handler
  * @param {()=>void} props.onClose
  * @param {'COMPLETED'|'IN_PROGRESS'|'PLANNED'|'FAILED'|'AUDIT'|'RE_ENROLL'|undefined} props.enrollStatus
- *   Current enrollment status (new schema only; undefined = not enrolled / legacy)
  * @param {'new'|'legacy'} props.enrollmentVersion
  * @param {(status: string)=>void} [props.onStatusChange]
- *   Called with new status string when user changes status in new-schema mode.
- *   Called with 'REMOVE' when user removes enrollment.
+ * @param {boolean} props.isTemporary
+ * @param {string|null} props.enrollMemo     - 現在保存されているメモ
+ * @param {(classId: string, memo: string) => void} [props.onMemoSave]
+ *   メモ保存時コールバック。未登録授業（isSelected=false）では呼ばれない。
  */
 export default function CourseModal({
   course, isSelected, isConflict, onToggle, onClose, toggling,
   enrollStatus, enrollmentVersion = 'legacy', onStatusChange,
   isTemporary = false,
+  enrollMemo  = null,
+  onMemoSave  = null,
 }) {
   const isNewSchema = enrollmentVersion === 'new' && typeof onStatusChange === 'function'
+  const canMemo     = isNewSchema && isSelected && typeof onMemoSave === 'function'
+
+  // ── スワイプページ管理 ──────────────────────────────────────────────────────
+  const [activePage, setActivePage] = useState(0)
+  const scrollRef   = useRef(null)
+
+  const handleScroll = useCallback(() => {
+    if (!scrollRef.current) return
+    const page = Math.round(scrollRef.current.scrollLeft / scrollRef.current.clientWidth)
+    setActivePage(page)
+  }, [])
+
+  // ページドットをタップしてジャンプ
+  const goToPage = useCallback((page) => {
+    if (!scrollRef.current) return
+    scrollRef.current.scrollTo({ left: page * scrollRef.current.clientWidth, behavior: 'smooth' })
+  }, [])
+
+  // ── メモ状態 ───────────────────────────────────────────────────────────────
+  const [memoText,  setMemoText]  = useState(enrollMemo ?? '')
+  const [memoState, setMemoState] = useState('idle') // 'idle' | 'saving' | 'saved' | 'error'
+  const [memoError, setMemoError] = useState('')
+
+  const handleMemoSave = useCallback(async () => {
+    if (!canMemo || memoState === 'saving') return
+    setMemoState('saving')
+    setMemoError('')
+    try {
+      await onMemoSave(course.class_id, memoText.slice(0, MEMO_MAX))
+      setMemoState('saved')
+      setTimeout(() => setMemoState('idle'), 2000)
+    } catch (e) {
+      setMemoError(e.message || '保存に失敗しました')
+      setMemoState('error')
+      setTimeout(() => setMemoState('idle'), 3000)
+    }
+  }, [canMemo, onMemoSave, course.class_id, memoText, memoState])
+
+  const totalPages = canMemo ? 2 : 1
 
   return (
     <div
@@ -38,177 +83,306 @@ export default function CourseModal({
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-[#1f2235] rounded-t-3xl w-full p-5 pb-8 animate-slide-up"
+        className="bg-white dark:bg-[#1f2235] rounded-t-3xl w-full animate-slide-up overflow-hidden flex flex-col"
+        style={{ maxHeight: '90dvh' }}
         onClick={e => e.stopPropagation()}
       >
-        <div className="w-10 h-1 bg-gray-200 dark:bg-white/10 rounded-full mx-auto mb-4" />
-
-        {/* ── バッジ行 ─────────────────────────────────────────────────────── */}
-        <div className="flex flex-wrap gap-1.5 mb-3">
-          {isTemporary && (
-            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300">
-              仮登録
-            </span>
-          )}
-          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TERM_COLORS[course.term] || 'bg-gray-100 text-gray-600'}`}>
-            {course.term}
-          </span>
-          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-slate-300">
-            {course.raw_category}
-          </span>
-          {course.credits && (
-            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-300">
-              {course.credits}単位
-            </span>
-          )}
-          {isConflict && (
-            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-red-100 text-red-600">
-              ⚠ 時間割衝突
-            </span>
-          )}
-          {/* 新スキーマ: 現在のステータスバッジ */}
-          {isNewSchema && enrollStatus && (
-            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-              STATUS_CONFIG[enrollStatus]?.badge ?? 'bg-gray-100 text-gray-600'
-            }`}>
-              {STATUS_CONFIG[enrollStatus]?.label ?? enrollStatus}
-            </span>
-          )}
-        </div>
-
-        {/* ── 科目名・担当者 ────────────────────────────────────────────────── */}
-        <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100 leading-snug mb-1">{course.course_name}</h2>
-        <div className="text-sm text-gray-500 dark:text-slate-400 mb-4">{course.intructor}</div>
-
-        {/* ── 詳細グリッド ─────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 gap-3 mb-5">
-          {[
-            ['曜日・時限', course.day_time || '時間外'],
-            ['教室', course.room || '—'],
-            ['対象年次', course.year ? `${course.year}年次` : '—'],
-            ['クラス', course.class || '—'],
-          ].map(([label, value]) => (
-            <div key={label} className="bg-gray-50 dark:bg-[#252839] rounded-xl p-2.5">
-              <div className="text-xs text-gray-400 dark:text-slate-500 mb-0.5">{label}</div>
-              <div className="text-sm font-semibold text-gray-800 dark:text-slate-200">{value}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* ── タグ ─────────────────────────────────────────────────────────── */}
-        {course.tags && (
-          <div className="mb-5">
-            <div className="text-xs text-gray-400 dark:text-slate-500 font-semibold mb-1.5">卒業要件タグ</div>
-            <div className="flex flex-wrap gap-1">
-              {String(course.tags).split('|').map(t => (
-                <span key={t} className="text-xs bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 px-2 py-0.5 rounded-full border border-blue-100 dark:border-blue-500/20">
-                  {t.trim()}
-                </span>
+        {/* ── ドラッグハンドル + ページドット ───────────────────────────────── */}
+        <div className="flex-shrink-0 pt-3 pb-2 flex flex-col items-center gap-2">
+          <div className="w-10 h-1 bg-gray-200 dark:bg-white/10 rounded-full" />
+          {totalPages > 1 && (
+            <div className="flex gap-1.5">
+              {Array.from({ length: totalPages }, (_, i) => (
+                <button
+                  key={i}
+                  onClick={() => goToPage(i)}
+                  className={`rounded-full transition-all ${
+                    activePage === i
+                      ? 'w-4 h-1.5 bg-blue-500'
+                      : 'w-1.5 h-1.5 bg-gray-200 dark:bg-white/20'
+                  }`}
+                />
               ))}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
-        {/* ── 備考 ─────────────────────────────────────────────────────────── */}
-        {course.note && (
-          <div className="mb-5">
-            <div className="text-xs text-gray-400 dark:text-slate-500 font-semibold mb-1.5">備考</div>
-            <div className="text-sm text-gray-700 dark:text-slate-300 bg-amber-50 dark:bg-amber-500/10 rounded-xl px-3 py-2.5 leading-relaxed border border-amber-100 dark:border-amber-500/20 whitespace-pre-wrap">
-              {course.note}
+        {/* ── スクロール可能なページコンテナ ────────────────────────────────── */}
+        <div
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="flex overflow-x-scroll flex-1"
+          style={{
+            scrollSnapType:    'x mandatory',
+            scrollbarWidth:    'none',         /* Firefox */
+            msOverflowStyle:   'none',         /* IE/Edge */
+            WebkitOverflowScrolling: 'touch',
+          }}
+        >
+          {/* ── Page 1: 授業詳細 + ステータス ─────────────────────────────── */}
+          <div
+            className="min-w-full px-5 pb-6"
+            style={{ scrollSnapAlign: 'start' }}
+          >
+            {/* バッジ行 */}
+            <div className="flex flex-wrap gap-1 mb-2 pt-1">
+              {isTemporary && (
+                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300">
+                  仮登録
+                </span>
+              )}
+              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TERM_COLORS[course.term] || 'bg-gray-100 text-gray-600'}`}>
+                {course.term}
+              </span>
+              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-slate-300">
+                {course.raw_category}
+              </span>
+              {course.credits && (
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-300">
+                  {course.credits}単位
+                </span>
+              )}
+              {isConflict && (
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-red-100 text-red-600">
+                  ⚠ 時間割衝突
+                </span>
+              )}
+              {isNewSchema && enrollStatus && (
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                  STATUS_CONFIG[enrollStatus]?.badge ?? 'bg-gray-100 text-gray-600'
+                }`}>
+                  {STATUS_CONFIG[enrollStatus]?.label ?? enrollStatus}
+                </span>
+              )}
             </div>
-          </div>
-        )}
 
-        {/* ── アクションボタン ──────────────────────────────────────────────── */}
+            {/* 科目名・担当者 */}
+            <h2 className="text-base font-bold text-gray-900 dark:text-slate-100 leading-snug mb-0.5">{course.course_name}</h2>
+            <div className="text-xs text-gray-500 dark:text-slate-400 mb-3">{course.intructor}</div>
 
-        {isNewSchema && isTemporary ? (
-          /* 仮登録: ステータス変更不可、取り消しのみ */
-          <div className="space-y-2">
-            <div className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10
-                            rounded-xl px-3 py-2.5 leading-relaxed border border-amber-200 dark:border-amber-500/20">
-              仮登録のため、ステータス変更はできません。
-              卒業要件の集計には含まれません。
+            {/* 詳細グリッド */}
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              {[
+                ['曜日・時限', course.day_time || '時間外'],
+                ['教室',       course.room    || '—'],
+                ['対象年次',   course.year ? `${course.year}年次` : '—'],
+                ['クラス',     course.class   || '—'],
+              ].map(([label, value]) => (
+                <div key={label} className="bg-gray-50 dark:bg-[#252839] rounded-xl p-2">
+                  <div className="text-[10px] text-gray-400 dark:text-slate-500 mb-0.5">{label}</div>
+                  <div className="text-xs font-semibold text-gray-800 dark:text-slate-200">{value}</div>
+                </div>
+              ))}
             </div>
-            {enrollStatus && (
+
+            {/* タグ行 + メモボタン（タグの左に小さいピルとして配置） */}
+            {(course.tags || canMemo) && (
+              <div className="mb-3">
+                <div className="flex items-center mb-1">
+                  {course.tags && (
+                    <span className="text-xs text-gray-400 dark:text-slate-500 font-semibold">卒業要件タグ</span>
+                  )}
+                  {/* メモボタン: 右端に丸ボタン */}
+                  {canMemo && (
+                    <button
+                      onClick={() => goToPage(1)}
+                      className={`ml-auto flex flex-col items-center justify-center w-12 h-12 rounded-full text-lg
+                                  transition-all active:scale-95 flex-shrink-0 shadow-sm ${
+                        memoText
+                          ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-500 dark:text-blue-400'
+                          : 'bg-gray-100 dark:bg-white/[0.08] text-gray-400 dark:text-slate-500'
+                      }`}
+                    >
+                      📝
+                      <span className={`text-[9px] font-semibold leading-none mt-0.5 ${
+                        memoText ? 'text-blue-500 dark:text-blue-400' : 'text-gray-400 dark:text-slate-500'
+                      }`}>
+                        {memoText ? 'あり' : 'メモ'}
+                      </span>
+                    </button>
+                  )}
+                </div>
+                {course.tags && (
+                  <div className="flex flex-wrap gap-1">
+                    {String(course.tags).split('|').map(t => (
+                      <span key={t} className="text-[10px] bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 px-1.5 py-0.5 rounded-full border border-blue-100 dark:border-blue-500/20">
+                        {t.trim()}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 備考 */}
+            {course.note && (
+              <div className="mb-3">
+                <div className="text-[10px] text-gray-400 dark:text-slate-500 font-semibold mb-1">備考</div>
+                <div className="text-xs text-gray-700 dark:text-slate-300 bg-amber-50 dark:bg-amber-500/10 rounded-xl px-3 py-2 leading-relaxed border border-amber-100 dark:border-amber-500/20 whitespace-pre-wrap">
+                  {course.note}
+                </div>
+              </div>
+            )}
+
+            {/* アクションボタン */}
+            {isNewSchema && isTemporary ? (
+              <div className="space-y-2">
+                <div className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10
+                                rounded-xl px-3 py-2 leading-relaxed border border-amber-200 dark:border-amber-500/20">
+                  仮登録のため、ステータス変更はできません。卒業要件の集計には含まれません。
+                </div>
+                {enrollStatus && (
+                  <button
+                    onClick={() => onStatusChange('REMOVE')}
+                    disabled={toggling}
+                    className={`w-full py-2.5 rounded-2xl text-sm font-semibold transition-all ${
+                      toggling
+                        ? 'bg-gray-100 dark:bg-white/10 text-gray-400 dark:text-slate-500'
+                        : 'bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-slate-300 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400'
+                    }`}
+                  >
+                    {toggling ? '更新中…' : '仮登録を取り消す'}
+                  </button>
+                )}
+              </div>
+            ) : isNewSchema ? (
+              <div className="space-y-2">
+                {enrollStatus ? (
+                  <>
+                    <div className="text-[10px] text-gray-400 dark:text-slate-500 font-semibold mb-1">履修ステータスを変更</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {DIRECT_STATUSES.map(value => {
+                        const cfg      = STATUS_CONFIG[value]
+                        const isActive = enrollStatus === value
+                        return (
+                          <button
+                            key={value}
+                            onClick={() => onStatusChange(value)}
+                            disabled={toggling}
+                            className={`py-2.5 rounded-2xl text-sm font-semibold transition-all border-2 ${
+                              toggling
+                                ? 'opacity-50 cursor-not-allowed bg-gray-100 dark:bg-white/10 text-gray-400 dark:text-slate-500 border-transparent'
+                                : isActive
+                                  ? cfg.button + ' border-transparent shadow-sm'
+                                  : cfg.outline + ' border'
+                            }`}
+                          >
+                            {cfg.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <button
+                      onClick={() => onStatusChange('REMOVE')}
+                      disabled={toggling}
+                      className={`w-full py-2.5 rounded-2xl text-sm font-semibold transition-all ${
+                        toggling
+                          ? 'bg-gray-100 dark:bg-white/10 text-gray-400 dark:text-slate-500'
+                          : 'bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-slate-300 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400'
+                      }`}
+                    >
+                      {toggling ? '更新中…' : '履修を取り消す'}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => onStatusChange('PLANNED')}
+                    disabled={toggling}
+                    className={`w-full py-3 rounded-2xl font-semibold text-sm transition-all ${
+                      toggling
+                        ? 'bg-gray-100 dark:bg-white/10 text-gray-400 dark:text-slate-500'
+                        : 'bg-blue-500 text-white hover:bg-blue-600'
+                    }`}
+                  >
+                    {toggling ? '更新中…' : '履修に追加する'}
+                  </button>
+                )}
+              </div>
+            ) : (
+              /* レガシー */
               <button
-                onClick={() => onStatusChange('REMOVE')}
+                onClick={onToggle}
                 disabled={toggling}
-                className={`w-full py-3 rounded-2xl text-sm font-semibold transition-all ${
+                className={`w-full py-3 rounded-2xl font-semibold text-sm transition-all ${
                   toggling
                     ? 'bg-gray-100 dark:bg-white/10 text-gray-400 dark:text-slate-500'
-                    : 'bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-slate-300 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400'
+                    : isSelected
+                      ? 'bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-white/[0.15]'
+                      : 'bg-blue-500 text-white hover:bg-blue-600'
                 }`}
               >
-                {toggling ? '更新中…' : '仮登録を取り消す'}
+                {toggling ? '更新中…' : isSelected ? '履修を取り消す' : '履修に追加する'}
               </button>
             )}
           </div>
-        ) : isNewSchema ? (
-          /* 新スキーマ: ステータスピッカー */
-          <div className="space-y-2">
-            {enrollStatus ? (
-              <>
-                <div className="text-xs text-gray-400 dark:text-slate-500 font-semibold mb-2">履修ステータスを変更</div>
-                <div className="grid grid-cols-2 gap-2 mb-3">
-                  {DIRECT_STATUSES.map(value => {
-                    const cfg     = STATUS_CONFIG[value]
-                    const isActive = enrollStatus === value
-                    return (
-                      <button
-                        key={value}
-                        onClick={() => onStatusChange(value)}
-                        disabled={toggling}
-                        className={`py-2.5 rounded-2xl text-sm font-semibold transition-all border-2 ${
-                          toggling
-                            ? 'opacity-50 cursor-not-allowed bg-gray-100 dark:bg-white/10 text-gray-400 dark:text-slate-500 border-transparent'
-                            : isActive
-                              ? cfg.button + ' border-transparent shadow-sm'
-                              : cfg.outline + ' border'
-                        }`}
-                      >
-                        {cfg.label}
-                      </button>
-                    )
-                  })}
+
+          {/* ── Page 2: メモ ──────────────────────────────────────────────── */}
+          {canMemo && (
+            <div
+              className="min-w-full overflow-y-auto px-5 pb-8 flex flex-col"
+              style={{ scrollSnapAlign: 'start' }}
+            >
+              <div className="pt-1 mb-3">
+                <div className="text-sm font-bold text-gray-900 dark:text-slate-100 mb-0.5">
+                  📝 メモ
                 </div>
-                <button
-                  onClick={() => onStatusChange('REMOVE')}
-                  disabled={toggling}
-                  className={`w-full py-3 rounded-2xl text-sm font-semibold transition-all ${
-                    toggling ? 'bg-gray-100 dark:bg-white/10 text-gray-400 dark:text-slate-500' : 'bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-slate-300 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400'
-                  }`}
-                >
-                  {toggling ? '更新中…' : '履修を取り消す'}
-                </button>
-              </>
-            ) : (
+                <div className="text-xs text-gray-400 dark:text-slate-500">
+                  {course.course_name}
+                </div>
+              </div>
+
+              <textarea
+                value={memoText}
+                onChange={e => {
+                  setMemoText(e.target.value.slice(0, MEMO_MAX))
+                  setMemoSaved(false)
+                }}
+                placeholder="授業の感想、試験対策、出席状況など…"
+                rows={7}
+                className="w-full rounded-2xl border border-gray-200 dark:border-white/[0.12]
+                           bg-gray-50 dark:bg-[#252839] text-sm text-gray-800 dark:text-slate-200
+                           placeholder-gray-300 dark:placeholder-slate-600
+                           px-4 py-3 resize-none leading-relaxed outline-none
+                           focus:border-blue-400 dark:focus:border-blue-500/60
+                           focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-500/10
+                           transition-all"
+              />
+
+              {/* 文字数カウンター */}
+              <div className="flex justify-end mt-1 mb-4">
+                <span className={`text-xs ${
+                  memoText.length >= MEMO_MAX
+                    ? 'text-red-400 dark:text-red-400'
+                    : 'text-gray-300 dark:text-slate-600'
+                }`}>
+                  {memoText.length} / {MEMO_MAX}
+                </span>
+              </div>
+
+              {/* エラー表示 */}
+              {memoState === 'error' && (
+                <div className="mb-3 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 text-xs text-red-600 dark:text-red-400">
+                  ⚠ {memoError}
+                </div>
+              )}
+
+              {/* 保存ボタン */}
               <button
-                onClick={() => onStatusChange('PLANNED')}
-                disabled={toggling}
-                className={`w-full py-3.5 rounded-2xl font-semibold text-sm transition-all ${
-                  toggling ? 'bg-gray-100 dark:bg-white/10 text-gray-400 dark:text-slate-500' : 'bg-blue-500 text-white hover:bg-blue-600'
+                onClick={handleMemoSave}
+                disabled={memoState === 'saving'}
+                className={`w-full py-3.5 rounded-2xl text-sm font-bold transition-all ${
+                  memoState === 'saved'
+                    ? 'bg-emerald-500 text-white'
+                    : memoState === 'saving'
+                      ? 'bg-blue-300 dark:bg-blue-500/50 text-white cursor-not-allowed'
+                      : 'bg-blue-500 hover:bg-blue-600 active:scale-[0.98] text-white'
                 }`}
               >
-                {toggling ? '更新中…' : '履修に追加する'}
+                {memoState === 'saving' ? '保存中…' : memoState === 'saved' ? '✓ 保存しました' : 'メモを保存する'}
               </button>
-            )}
-          </div>
-        ) : (
-          /* レガシー: トグルボタン */
-          <button
-            onClick={onToggle}
-            disabled={toggling}
-            className={`w-full py-3.5 rounded-2xl font-semibold text-sm transition-all ${
-              toggling
-                ? 'bg-gray-100 dark:bg-white/10 text-gray-400 dark:text-slate-500'
-                : isSelected
-                  ? 'bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-white/[0.15]'
-                  : 'bg-blue-500 text-white hover:bg-blue-600'
-            }`}
-          >
-            {toggling ? '更新中…' : isSelected ? '履修を取り消す' : '履修に追加する'}
-          </button>
-        )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

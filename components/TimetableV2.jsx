@@ -374,6 +374,7 @@ export default function TimetableV2({
   enrollmentVersion = 'legacy',
   statusMap       = null,   // Map<classId, EnrollmentStatus> | null
   onStatusChange  = null,   // (classId, status) => void | null
+  onMemoSave      = null,   // (classId, memo) => void | null
   // 仮登録 Set（composite key）
   temporaryIds    = new Set(),
   // Bulk-status props
@@ -821,30 +822,20 @@ export default function TimetableV2({
           </div>
 
           <div className="ml-auto pb-2 flex items-center gap-1">
-            {/* 一括変更ボタン（新スキーマのみ表示） */}
-            {enrollmentVersion === 'new' && (
-              bulkSelectMode ? (
-                <button
-                  onClick={handleBulkExit}
-                  className="flex items-center gap-1 text-xs text-indigo-500 font-semibold
-                             transition-colors px-2 py-1 rounded-lg bg-indigo-50"
-                >
-                  完了
-                </button>
-              ) : (
-                <button
-                  onClick={() => { setBulkSelectMode(true); setBulkStatusResult(null) }}
-                  className="flex items-center gap-1 text-xs text-indigo-400
-                             hover:text-indigo-600 transition-colors px-2 py-1 rounded-lg hover:bg-indigo-50"
-                  title="履修を選択してステータスを一括変更"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                  </svg>
-                  一括変更
-                </button>
-              )
+            {/* 一括変更ボタン（新スキーマのみ・非選択モード時のみ表示） */}
+            {enrollmentVersion === 'new' && !bulkSelectMode && (
+              <button
+                onClick={() => { setBulkSelectMode(true); setBulkStatusResult(null) }}
+                className="flex items-center gap-1 text-xs text-indigo-400
+                           hover:text-indigo-600 transition-colors px-2 py-1 rounded-lg hover:bg-indigo-50"
+                title="履修を選択してステータスを一括変更"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+                一括変更
+              </button>
             )}
             <button
               onClick={() => setConfirmReset(true)}
@@ -1276,7 +1267,7 @@ export default function TimetableV2({
       {bulkSelectMode && (
         <div className="flex-shrink-0 bg-white dark:bg-[#1a1d27] border-t border-gray-100 dark:border-white/[0.07] px-3 py-3 flex flex-col gap-2.5">
 
-          {/* 選択数 + 全選択・クリア */}
+          {/* 選択数 + 全選択・クリア・完了 */}
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
               {bulkSelected.size} 件選択中
@@ -1287,7 +1278,7 @@ export default function TimetableV2({
                 className="text-xs text-gray-500 dark:text-slate-400 font-medium px-2.5 py-1 rounded-lg
                            border border-gray-200 dark:border-white/[0.07] hover:bg-gray-50 dark:hover:bg-[#252839] transition-colors"
               >
-                全選択
+                一括選択
               </button>
               <button
                 onClick={handleBulkClear}
@@ -1295,6 +1286,13 @@ export default function TimetableV2({
                            border border-gray-200 dark:border-white/[0.07] hover:bg-gray-50 dark:hover:bg-[#252839] transition-colors"
               >
                 クリア
+              </button>
+              <button
+                onClick={handleBulkExit}
+                className="text-xs text-indigo-500 dark:text-indigo-400 font-semibold px-2.5 py-1 rounded-lg
+                           bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-colors"
+              >
+                完了
               </button>
             </div>
           </div>
@@ -1386,6 +1384,10 @@ export default function TimetableV2({
               }
             : undefined
           }
+          enrollMemo={
+            (enrollment ?? []).find(e => e.class_id === catalogDetail.classId)?.memo ?? null
+          }
+          onMemoSave={onMemoSave ?? undefined}
         />
       )}
 

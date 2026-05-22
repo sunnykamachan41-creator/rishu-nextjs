@@ -1,5 +1,5 @@
 'use client'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import useSWR from 'swr'
 
 // ── SWR fetcher ───────────────────────────────────────────────────────────────
@@ -37,8 +37,20 @@ export default function GraduationTabV2({
   onRecalculate = null,
   recalcBusy    = false,
   recalcError   = null,
+  initialMode   = 'graduation', // ドロワーから直接 ② に飛ぶために使用
+  onModeChange  = null,         // mode が変わったとき親に通知
 }) {
-  const [mode, setMode] = useState('graduation') // 'graduation' | 'license'
+  const [mode, setMode] = useState(initialMode)
+
+  // ドロワーなど外部から initialMode が変わったら同期する
+  useEffect(() => {
+    setMode(initialMode)
+  }, [initialMode])
+
+  const handleModeChange = useCallback((m) => {
+    setMode(m)
+    onModeChange?.(m)
+  }, [onModeChange])
 
   return (
     <div className="h-full flex flex-col">
@@ -57,7 +69,7 @@ export default function GraduationTabV2({
           onToggleTemporary={onToggleTemporary}
         />
       )}
-      <ModeBar mode={mode} onChange={setMode} />
+      <ModeBar mode={mode} onChange={handleModeChange} />
       {mode === 'graduation' && (
         <GraduationContent
           studentId={studentId}

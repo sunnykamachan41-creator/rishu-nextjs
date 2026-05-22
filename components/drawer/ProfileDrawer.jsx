@@ -28,6 +28,9 @@ export default function ProfileDrawer({
   onChangeDepartment,
   rawLeavePeriods = [],
   onLeavePeriodChange,
+  onOpenMinorSection = null,  // 副免許 → 卒業要件② に飛ぶ
+  onOpenExemption    = null,  // 単位認定 → カタログタブに飛ぶ
+  exemptionCount     = 0,
 }) {
   const { data: session }                     = useSession()
   const { profile, isLoading, updateProfile } = useUserProfile()
@@ -131,6 +134,9 @@ export default function ProfileDrawer({
               onUpdateProfile={updateProfile}
               rawLeavePeriods={rawLeavePeriods}
               onLeavePeriodChange={onLeavePeriodChange}
+              onOpenMinorSection={onOpenMinorSection}
+              onOpenExemption={onOpenExemption}
+              exemptionCount={exemptionCount}
             />
             <DisplaySection />
             <DataSection profile={profile} />
