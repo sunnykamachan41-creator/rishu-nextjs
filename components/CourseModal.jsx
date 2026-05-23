@@ -305,8 +305,8 @@ export default function CourseModal({
                   </button>
                 )}
               </div>
-            ) : (
-              /* レガシー */
+            ) : onToggle ? (
+              /* レガシー（onToggle がある場合のみ表示） */
               <button
                 onClick={onToggle}
                 disabled={toggling}
@@ -320,7 +320,7 @@ export default function CourseModal({
               >
                 {toggling ? '更新中…' : isSelected ? '履修を取り消す' : '履修に追加する'}
               </button>
-            )}
+            ) : null}
           </div>
 
           {/* ── Page 2: メモ + 出席管理 ──────────────────────────────────── */}
