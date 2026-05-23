@@ -79,22 +79,27 @@ export async function GET(request) {
     // ── Build credit map for current student ────────────────────────────────
     // 通常: students_summary の行を直接参照
     // includeProjected: progress_auto の COMPLETED + IN_PROGRESS + PLANNED を集計
-    // includeTemporary: 仮登録（is_temporary=TRUE）のコースを students_summary に加算
+    // includeTemporary: 仮登録（is_temporary=TRUE）のコースを加算
+    //
+    // 重要: 仮登録コースは「履修予定を含む」とは独立して管理する。
+    //   includeProjected=true であっても仮登録は除外し、
+    //   includeTemporary=true のときだけ別途加算する。
 
-    // 仮登録 class_id セット（include_temporary が有効なときのみ構築）
-    const temporaryClassIds = includeTemporary
-      ? new Set(
-          (sheetsData.normalizedEnrollment ?? [])
-            .filter(e => e.is_temporary)
-            .map(e => String(e.class_id ?? '').trim())
-        )
-      : new Set()
+    // 仮登録 class_id セット（常に構築して両フラグから参照できるようにする）
+    const temporaryClassIds = new Set(
+      (sheetsData.normalizedEnrollment ?? [])
+        .filter(e => e.is_temporary)
+        .map(e => String(e.class_id ?? '').trim())
+    )
 
     const creditMap = new Map()
 
     if (includeProjected) {
       // 履修予定を含む: progress_auto を集計して creditMap を構築
+      // ただし仮登録コース（is_temporary=TRUE）は除外する（「仮登録を含む」フラグで別管理）
       for (const row of progressRows) {
+        const classId = String(row.class_id ?? '').trim()
+        if (temporaryClassIds.has(classId)) continue   // 仮登録は除外
         const status = String(row.status ?? '').trim().toUpperCase()
         if (!['COMPLETED', 'IN_PROGRESS', 'PLANNED'].includes(status)) continue
         const cat = normCat(row.final_category ?? '')
@@ -113,18 +118,18 @@ export async function GET(request) {
       } else {
         console.warn('[GET /api/graduation/ui] student not found in students_summary:', studentId)
       }
+    }
 
-      // 仮登録を含む: 仮登録コースの単位を students_summary ベースに加算
-      if (includeTemporary && temporaryClassIds.size > 0) {
-        for (const row of progressRows) {
-          const classId = String(row.class_id ?? '').trim()
-          if (!temporaryClassIds.has(classId)) continue
-          const status = String(row.status ?? '').trim().toUpperCase()
-          if (!['COMPLETED', 'IN_PROGRESS', 'PLANNED'].includes(status)) continue
-          const cat = normCat(row.final_category ?? '')
-          if (!cat) continue
-          creditMap.set(cat, (creditMap.get(cat) || 0) + (Number(row.credits) || 0))
-        }
+    // 仮登録を含む: includeProjected の有無に関わらず仮登録コースを加算
+    if (includeTemporary && temporaryClassIds.size > 0) {
+      for (const row of progressRows) {
+        const classId = String(row.class_id ?? '').trim()
+        if (!temporaryClassIds.has(classId)) continue
+        const status = String(row.status ?? '').trim().toUpperCase()
+        if (!['COMPLETED', 'IN_PROGRESS', 'PLANNED'].includes(status)) continue
+        const cat = normCat(row.final_category ?? '')
+        if (!cat) continue
+        creditMap.set(cat, (creditMap.get(cat) || 0) + (Number(row.credits) || 0))
       }
     }
 

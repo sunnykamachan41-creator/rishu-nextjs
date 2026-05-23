@@ -14,6 +14,8 @@ import { DEFAULT_FILTERS } from '@/components/FilterDrawer'
 import {
   loadEnrollmentYear, saveEnrollmentYear,
   loadMaxGrade, saveMaxGrade,
+  loadSelectedGrade, saveSelectedGrade,
+  loadTimetableTermFilter, saveTimetableTermFilter,
   gradeToYear,
 } from '@/lib/periodConfig'
 import { termToSemKey } from '@/lib/eligibility'
@@ -86,7 +88,7 @@ export default function Page() {
   }, [drawerOpen])
   // 学科変更キャンセル用：変更開始前の department_id を退避しておく
   const [prevDepartment, setPrevDepartment] = useState('')
-  const [timetableTermFilter, setTimetableTermFilter] = useState('春学期')
+  const [timetableTermFilter, setTimetableTermFilter] = useState(loadTimetableTermFilter)
 
   // 再履修・聴講モーダル
   // { classId, courseId, course } | null
@@ -100,7 +102,11 @@ export default function Page() {
   // 学年管理（handleDepartmentSelect が enrollmentYear を参照するため、先に宣言する）
   const [enrollmentYear, setEnrollmentYear] = useState(loadEnrollmentYear)
   const [maxGrade,       setMaxGrade]       = useState(loadMaxGrade)
-  const [selectedGrade,  setSelectedGrade]  = useState(1)
+  const [selectedGrade,  setSelectedGrade]  = useState(() => {
+    const max   = loadMaxGrade()
+    const saved = loadSelectedGrade()
+    return Math.min(Math.max(1, saved), max)
+  })
   const academicYear = gradeToYear(selectedGrade, enrollmentYear)
 
   /**
@@ -181,6 +187,10 @@ export default function Page() {
     saveMaxGrade(next)
     if (selectedGrade > next) setSelectedGrade(next)
   }, [maxGrade, selectedGrade])
+
+  // 学年・学期フィルタを localStorage に永続化（変更のたびに保存）
+  useEffect(() => { saveSelectedGrade(selectedGrade) }, [selectedGrade])
+  useEffect(() => { saveTimetableTermFilter(timetableTermFilter) }, [timetableTermFilter])
 
   // curriculum_year 変更安全処理: 変更前の年度確認モーダル用 state
   const [pendingEnrollmentYear,       setPendingEnrollmentYear]       = useState(null)
@@ -753,6 +763,17 @@ export default function Page() {
     setSaveError(null)
     mutate()  // サーバー値に戻す
   }, [mutate])
+
+  // ── ページを閉じる・リロード時に未保存変更を警告 ──────────────────────────────
+  useEffect(() => {
+    if (!hasPendingChanges) return
+    const handler = (e) => {
+      e.preventDefault()
+      e.returnValue = ''   // Chrome requires returnValue to be set
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [hasPendingChanges])
 
   // ── ドロワー → タブナビゲーション ────────────────────────────────────────────
   // 副免許ボタン: ドロワーを閉じて卒業要件タブの ② 副免許・資格へ
