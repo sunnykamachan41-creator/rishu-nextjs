@@ -57,7 +57,7 @@ export async function POST(request) {
     return NextResponse.json({ error: 'session_number は 1 以上の整数です' }, { status: 400 })
   }
 
-  const VALID_STATUSES = ['present', 'late', 'absent', null, '']
+  const VALID_STATUSES = ['present', 'late', 'absent', 'cancelled', null, '']
   if (!VALID_STATUSES.includes(status)) {
     return NextResponse.json({ error: 'status は present / late / absent / null のいずれかです' }, { status: 400 })
   }

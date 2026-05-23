@@ -4,13 +4,14 @@ import useSWR from 'swr'
 
 // ── 定数 ──────────────────────────────────────────────────────────────────────
 
-const STATUS_CYCLE  = ['', 'present', 'late', 'absent']
-const STATUS_LABELS = { '': '−', present: '出', late: '遅', absent: '欠' }
+const STATUS_CYCLE  = ['', 'present', 'late', 'absent', 'cancelled']
+const STATUS_LABELS = { '': '−', present: '出', late: '遅', absent: '欠', cancelled: '休' }
 const STATUS_COLORS = {
-  '':       'bg-gray-100 dark:bg-white/[0.08] text-gray-300 dark:text-slate-600',
-  present:  'bg-green-100 dark:bg-green-500/20 text-green-600 dark:text-green-400',
-  late:     'bg-yellow-100 dark:bg-yellow-500/20 text-yellow-600 dark:text-yellow-400',
-  absent:   'bg-red-100 dark:bg-red-500/20 text-red-500 dark:text-red-400',
+  '':         'bg-gray-100 dark:bg-white/[0.08] text-gray-300 dark:text-slate-600',
+  present:    'bg-green-100 dark:bg-green-500/20 text-green-600 dark:text-green-400',
+  late:       'bg-yellow-100 dark:bg-yellow-500/20 text-yellow-600 dark:text-yellow-400',
+  absent:     'bg-red-100 dark:bg-red-500/20 text-red-500 dark:text-red-400',
+  cancelled:  'bg-slate-200 dark:bg-slate-500/20 text-slate-400 dark:text-slate-500',
 }
 const MEMO_MAX = 50
 
@@ -76,12 +77,13 @@ export default function AttendanceSection({ enrollmentId, sessionCount }) {
     })
   }, [enrollmentId, recordMap, mutate])
 
-  // 出席率
-  const present = records.filter(r => r.status === 'present').length
-  const late    = records.filter(r => r.status === 'late').length
-  const absent  = records.filter(r => r.status === 'absent').length
-  const total   = present + late + absent
-  const rate    = total > 0 ? Math.round((present + late * 0.5) / total * 100) : null
+  // 出席率（休講は母数から除外）
+  const present   = records.filter(r => r.status === 'present').length
+  const late      = records.filter(r => r.status === 'late').length
+  const absent    = records.filter(r => r.status === 'absent').length
+  const cancelled = records.filter(r => r.status === 'cancelled').length
+  const total     = present + late + absent          // 休講除く有効コマ数
+  const rate      = total > 0 ? Math.round((present + late * 0.5) / total * 100) : null
 
   return (
     <div>
@@ -128,12 +130,13 @@ export default function AttendanceSection({ enrollmentId, sessionCount }) {
       </div>
 
       {/* 集計行 */}
-      {total > 0 && (
-        <div className="flex gap-3 mt-2 text-[10px] text-gray-400 dark:text-slate-500">
+      {(total > 0 || cancelled > 0) && (
+        <div className="flex gap-3 mt-2 text-[10px] text-gray-400 dark:text-slate-500 flex-wrap">
           <span>出席 {present}</span>
           <span>遅刻 {late}</span>
           <span>欠席 {absent}</span>
-          <span className="ml-auto">記録済 {total}/{sessionCount}</span>
+          {cancelled > 0 && <span className="text-slate-400 dark:text-slate-500">休講 {cancelled}</span>}
+          <span className="ml-auto">記録済 {total + cancelled}/{sessionCount}</span>
         </div>
       )}
 
@@ -184,16 +187,18 @@ export default function AttendanceSection({ enrollmentId, sessionCount }) {
           onSave={(memo) => {
             const sn     = openSn
             const status = recordMap.get(String(sn))?.status || ''
+            // メモだけでも楽観更新・保存（未記録回の先行メモを許容）
             mutate(prev => {
               const exists = prev.find(r => String(r.session_number) === String(sn))
               if (exists) return prev.map(r => String(r.session_number) === String(sn) ? { ...r, memo } : r)
+              if (memo) return [...prev, { session_number: sn, status: '', memo }]
               return prev
             }, { revalidate: false })
-            if (status) {
+            if (memo || status) {
               fetch('/api/attendance', {
                 method:  'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body:    JSON.stringify({ enrollment_id: enrollmentId, session_number: sn, status, memo }),
+                body:    JSON.stringify({ enrollment_id: enrollmentId, session_number: sn, status: status || null, memo }),
               })
             }
           }}
