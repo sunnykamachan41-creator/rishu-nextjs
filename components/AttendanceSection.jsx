@@ -12,7 +12,7 @@ const STATUS_COLORS = {
   late:     'bg-yellow-100 dark:bg-yellow-500/20 text-yellow-600 dark:text-yellow-400',
   absent:   'bg-red-100 dark:bg-red-500/20 text-red-500 dark:text-red-400',
 }
-const MEMO_MAX = 200
+const MEMO_MAX = 50
 
 // ── SWR fetcher ───────────────────────────────────────────────────────────────
 
@@ -140,11 +140,40 @@ export default function AttendanceSection({ enrollmentId, sessionCount }) {
       {/* 操作ヒント */}
       {total === 0 && !isLoading && (
         <p className="mt-2 text-[10px] text-gray-300 dark:text-slate-600 text-center">
-          タップで出席状況を記録 · 長押しでコメント
+          タップで記録 · 長押しでコメント追加
         </p>
       )}
 
-      {/* インライン詳細コメント（長押しで開く） */}
+      {/* メモ一覧 */}
+      {(() => {
+        const memoList = Array.from({ length: sessionCount }, (_, i) => i + 1)
+          .map(sn => ({ sn, memo: (recordMap.get(String(sn))?.memo || '').trim() }))
+          .filter(({ memo }) => memo.length > 0)
+        if (memoList.length === 0) return null
+        return (
+          <div className="mt-3 max-h-36 overflow-y-auto rounded-2xl border border-gray-100 dark:border-white/[0.07]">
+            {memoList.map(({ sn, memo }, idx) => (
+              <button
+                key={sn}
+                onClick={() => setOpenSn(prev => prev === sn ? null : sn)}
+                className={`w-full flex items-baseline gap-2 px-3 py-2 text-left
+                            transition-colors active:bg-blue-50 dark:active:bg-blue-500/10
+                            ${idx < memoList.length - 1 ? 'border-b border-gray-100 dark:border-white/[0.06]' : ''}
+                            ${openSn === sn ? 'bg-blue-50 dark:bg-blue-500/10' : 'bg-white dark:bg-[#1f2235]'}`}
+              >
+                <span className="flex-shrink-0 text-[10px] font-bold text-gray-400 dark:text-slate-500 w-10">
+                  第{sn}回
+                </span>
+                <span className="text-xs text-gray-700 dark:text-slate-300 leading-snug truncate">
+                  {memo}
+                </span>
+              </button>
+            ))}
+          </div>
+        )
+      })()}
+
+      {/* インライン詳細コメント（長押し or メモ行タップで開く） */}
       {openSn !== null && (
         <InlineComment
           key={openSn}
