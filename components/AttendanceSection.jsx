@@ -11,7 +11,7 @@ const STATUS_COLORS = {
   present:    'bg-green-100 dark:bg-green-500/20 text-green-600 dark:text-green-400',
   late:       'bg-yellow-100 dark:bg-yellow-500/20 text-yellow-600 dark:text-yellow-400',
   absent:     'bg-red-100 dark:bg-red-500/20 text-red-500 dark:text-red-400',
-  cancelled:  'bg-slate-200 dark:bg-slate-500/20 text-slate-400 dark:text-slate-500',
+  cancelled:  'bg-sky-100 dark:bg-sky-500/20 text-sky-400 dark:text-sky-500',
 }
 const MEMO_MAX = 50
 
