@@ -548,8 +548,11 @@ export default function Page() {
 
     // Step 2: 未保存変更リストを更新（Sheets API は呼ばない）
     const saveSemester    = timetableTermFilter === '秋学期' ? 'fall' : 'spring'
-    const saveAcademicYear = academicYear
-    const saveIsTemp       = latestCourseYear > 0 && saveAcademicYear > latestCourseYear
+    const saveIsTemp       = latestCourseYear > 0 && academicYear > latestCourseYear
+    // 仮登録は latestYear のコースデータが実体なので academic_year を latestYear にクランプする。
+    // そうしないと composite key（class_id|academic_year）がサーバーとクライアントで
+    // ズレて、リロード後に選択済みと認識されなくなる。
+    const saveAcademicYear = saveIsTemp ? latestCourseYear : academicYear
     setPendingChanges(prev => {
       const next = new Map(prev)
       if (newStatus === 'REMOVE') {
@@ -604,8 +607,11 @@ export default function Page() {
 
     // 未保存変更リストを更新
     const saveSemester     = timetableTermFilter === '秋学期' ? 'fall' : 'spring'
-    const saveAcademicYear = academicYear
-    const saveIsTemp       = latestCourseYear > 0 && saveAcademicYear > latestCourseYear
+    const saveIsTemp       = latestCourseYear > 0 && academicYear > latestCourseYear
+    // 仮登録は latestYear のコースデータが実体なので academic_year を latestYear にクランプする。
+    // そうしないと composite key（class_id|academic_year）がサーバーとクライアントで
+    // ズレて、リロード後に選択済みと認識されなくなる。
+    const saveAcademicYear = saveIsTemp ? latestCourseYear : academicYear
     setPendingChanges(prev => {
       const next = new Map(prev)
       next.set(ck, {
@@ -688,8 +694,11 @@ export default function Page() {
 
     // Step 2: 未保存変更リストを更新（Sheets API は呼ばない）
     const saveSemester     = timetableTermFilter === '秋学期' ? 'fall' : 'spring'
-    const saveAcademicYear = academicYear
-    const saveIsTemp       = latestCourseYear > 0 && saveAcademicYear > latestCourseYear
+    const saveIsTemp       = latestCourseYear > 0 && academicYear > latestCourseYear
+    // 仮登録は latestYear のコースデータが実体なので academic_year を latestYear にクランプする。
+    // そうしないと composite key（class_id|academic_year）がサーバーとクライアントで
+    // ズレて、リロード後に選択済みと認識されなくなる。
+    const saveAcademicYear = saveIsTemp ? latestCourseYear : academicYear
     setPendingChanges(prev => {
       const next = new Map(prev)
       if (isAdding) {
