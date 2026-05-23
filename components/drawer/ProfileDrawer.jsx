@@ -6,6 +6,7 @@ import ProfileHeader        from './sections/ProfileHeader'
 import AffiliationSection   from './sections/AffiliationSection'
 import DisplaySection       from './sections/DisplaySection'
 import DataSection          from './sections/DataSection'
+import SupportSection       from './sections/SupportSection'
 import AuthSection          from './sections/AuthSection'
 
 /**
@@ -140,6 +141,7 @@ export default function ProfileDrawer({
             />
             <DisplaySection />
             <DataSection profile={profile} />
+            <SupportSection onClose={onClose} />
             <AuthSection onClose={onClose} />
 
             <p className="text-center text-[11px] text-gray-300 dark:text-slate-600 pt-1">

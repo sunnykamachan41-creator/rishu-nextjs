@@ -27,7 +27,8 @@ import { loadExemptions, saveExemptions } from '@/lib/exemptionStore'
 import CurriculumYearChangeModal from '@/components/CurriculumYearChangeModal'
 import { calculateDisplayGrade } from '@/lib/leavePeriods'
 import { useLeavePeriods } from '@/lib/useLeavePeriods'
-import PreEnrollMigrateModal from '@/components/PreEnrollMigrateModal'
+import PreEnrollMigrateModal  from '@/components/PreEnrollMigrateModal'
+import NotificationBell       from '@/components/NotificationBell'
 
 // ── SWR fetcher ───────────────────────────────────────────────────────────────
 
@@ -1011,8 +1012,8 @@ export default function Page() {
           </span>
         </div>
 
-        {/* 右側スペーサー（左右対称） */}
-        <div className="w-8 flex-shrink-0" />
+        {/* 右側：通知ベル */}
+        <NotificationBell />
       </div>
 
       {/* オンボーディング: department 未設定時は他の操作をロック */}

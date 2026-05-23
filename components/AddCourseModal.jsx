@@ -1,8 +1,10 @@
 'use client'
 import { useState, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { useSwipeDown } from '@/lib/useSwipeDown'
 import CourseModal from './CourseModal'
 import { isCourseEligible } from '@/lib/eligibility'
+import { CLASSROOM_GROUPS } from '@/lib/support'
 
 // ── 定数 ──────────────────────────────────────────────────────────────────────
 
@@ -94,13 +96,17 @@ export default function AddCourseModal({
   academicYear, grade, displayGrade, courses, existingEntries,
   onAdd, onClose,
 }) {
+  const router = useRouter()
   const { sheetRef, handleProps } = useSwipeDown(onClose)
 
-  const [query,          setQuery]         = useState('')
-  const [customTitle,    setCustomTitle]   = useState('')
-  const [customMode,     setCustomMode]    = useState(false)
-  const [preview,        setPreview]       = useState(null)
-  const [prioritizeGrade, setPrioritizeGrade] = useState(true)  // 学年優先ソート（デフォルトON）
+  const [query,              setQuery]             = useState('')
+  const [customTitle,        setCustomTitle]       = useState('')
+  const [customClassroom,    setCustomClassroom]   = useState('')
+  const [customMode,         setCustomMode]        = useState(false)
+  const [preview,            setPreview]           = useState(null)
+  const [prioritizeGrade,    setPrioritizeGrade]   = useState(true)
+  // ④ 授業申請ショートカット
+  const [showCourseReqWarn,  setShowCourseReqWarn] = useState(false)
 
   // ── コース絞り込み ────────────────────────────────────────────────────────
 
@@ -173,13 +179,12 @@ export default function AddCourseModal({
     onAdd({
       day,
       period,
-      // lockedTerm が設定されていれば（ハーフクリック）そのターム番号を使用
-      // 空セルクリックからの手動入力は通常授業扱い（null）
       term:        lockedTerm ?? null,
       courseTitle: title,
-      room:        '',
+      room:        customClassroom || '',
       classId:     null,
     })
+    setCustomClassroom('')
   }
 
   // ── 表示用ラベル ────────────────────────────────────────────────────────────
@@ -271,6 +276,18 @@ export default function AddCourseModal({
         {/* ── コース一覧 ───────────────────────────────────────────────────── */}
         <div className="flex-1 overflow-auto px-3 py-2">
 
+          {/* ⑤ 私用・ゼミ追加ボタン（一覧最上部） */}
+          <button
+            onClick={() => { setCustomMode(true); setQuery('') }}
+            className="w-full flex items-center justify-center gap-1.5 mb-3 py-2 rounded-xl
+                       bg-gray-50 dark:bg-[#252839] border border-dashed border-gray-200 dark:border-white/[0.1]
+                       text-xs font-medium text-gray-500 dark:text-slate-400
+                       hover:border-indigo-300 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors"
+          >
+            <span className="text-base leading-none">＋</span>
+            私用・ゼミ・補講などを追加
+          </button>
+
           {/* 空状態 */}
           {filtered.length === 0 && !query && (
             <div className="text-center py-8 text-gray-400 dark:text-slate-500">
@@ -346,31 +363,103 @@ export default function AddCourseModal({
             )
           })}
 
-          {/* ── 手動入力 ──────────────────────────────────────────────────── */}
+          {/* ── 手動入力（私用・ゼミ・補講など） ────────────────────────── */}
           <div className="mt-2 pt-2 border-t border-gray-100 dark:border-white/[0.07]">
             {customMode ? (
-              <div className="flex gap-2">
-                <input
-                  type="text" value={customTitle}
-                  onChange={e => setCustomTitle(e.target.value)}
-                  placeholder="授業名を入力…"
-                  onKeyDown={e => e.key === 'Enter' && handleCustomAdd()}
-                  className="flex-1 bg-gray-50 dark:bg-[#252839] rounded-xl px-3 py-2 text-sm border border-gray-100 dark:border-white/[0.07]
-                             text-gray-800 dark:text-slate-200 placeholder:text-gray-400 dark:placeholder:text-slate-500
-                             focus:outline-none focus:ring-2 focus:ring-blue-300"
-                />
-                <button onClick={handleCustomAdd}
-                  className="bg-blue-500 text-white px-3 py-2 rounded-xl text-sm font-semibold">
+              <div className="space-y-2">
+                {/* 授業名 */}
+                <div className="flex gap-2">
+                  <input
+                    type="text" value={customTitle}
+                    onChange={e => setCustomTitle(e.target.value)}
+                    placeholder="名前を入力（ゼミ・研究室・補講 等）"
+                    onKeyDown={e => e.key === 'Enter' && handleCustomAdd()}
+                    className="flex-1 bg-gray-50 dark:bg-[#252839] rounded-xl px-3 py-2 text-sm
+                               border border-gray-100 dark:border-white/[0.07]
+                               text-gray-800 dark:text-slate-200 placeholder:text-gray-400 dark:placeholder:text-slate-500
+                               focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  />
+                  <button onClick={() => { setCustomMode(false); setCustomTitle(''); setCustomClassroom('') }}
+                    className="text-gray-400 dark:text-slate-500 px-2 text-sm flex-shrink-0">✕</button>
+                </div>
+
+                {/* 教室（任意） */}
+                <div className="relative">
+                  <select
+                    value={customClassroom}
+                    onChange={e => setCustomClassroom(e.target.value)}
+                    className="w-full bg-gray-50 dark:bg-[#252839] rounded-xl px-3 py-2 text-sm
+                               border border-gray-100 dark:border-white/[0.07]
+                               text-gray-600 dark:text-slate-300
+                               focus:outline-none focus:ring-2 focus:ring-blue-300 appearance-none pr-7"
+                  >
+                    <option value="">教室（任意）</option>
+                    {Object.entries(CLASSROOM_GROUPS).map(([building, rooms]) => (
+                      <optgroup key={building} label={building}>
+                        {rooms.map(r => <option key={r} value={r}>{r}</option>)}
+                      </optgroup>
+                    ))}
+                    <option value="その他">その他</option>
+                  </select>
+                  <svg className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400"
+                    fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+
+                <button
+                  onClick={handleCustomAdd}
+                  disabled={!customTitle.trim()}
+                  className="w-full bg-blue-500 disabled:bg-gray-200 dark:disabled:bg-slate-700
+                             disabled:text-gray-400 dark:disabled:text-slate-500
+                             text-white px-3 py-2 rounded-xl text-sm font-semibold transition-colors"
+                >
                   追加
                 </button>
-                <button onClick={() => { setCustomMode(false); setCustomTitle('') }}
-                  className="text-gray-400 dark:text-slate-500 px-2 text-sm">✕</button>
               </div>
             ) : (
               <button onClick={() => setCustomMode(true)}
                 className="w-full text-center text-xs text-blue-500 font-medium py-2
                            hover:text-blue-600 transition-colors">
                 ＋ 手動で授業名を入力
+              </button>
+            )}
+          </div>
+
+          {/* ④ 授業登録申請ショートカット */}
+          <div className="mt-3 pt-3 border-t border-gray-100 dark:border-white/[0.07]">
+            {showCourseReqWarn ? (
+              <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30
+                              rounded-xl px-3 py-3 space-y-2.5">
+                <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-relaxed">
+                  ※ 大学で正式に開講されている、単位を伴う授業のみ登録可能です。
+                  アルバイト・私用予定・ゼミ・サークル等は登録できません。
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { onClose(); router.push('/support') }}
+                    className="flex-1 bg-indigo-500 text-white rounded-xl text-xs font-bold py-2"
+                  >
+                    申請ページへ進む
+                  </button>
+                  <button
+                    onClick={() => setShowCourseReqWarn(false)}
+                    className="px-3 py-2 text-xs text-gray-400 dark:text-slate-500 rounded-xl
+                               hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+                  >
+                    戻る
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowCourseReqWarn(true)}
+                className="w-full text-center py-2 text-xs text-gray-400 dark:text-slate-500"
+              >
+                🔍 見つかりませんか？{' '}
+                <span className="text-indigo-400 dark:text-indigo-500 font-semibold">
+                  授業の登録を申請する
+                </span>
               </button>
             )}
           </div>
