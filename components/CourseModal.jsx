@@ -1,6 +1,7 @@
 'use client'
 import { useState, useRef, useCallback } from 'react'
 import { STATUS_CONFIG, DIRECT_STATUSES } from '@/lib/enrollmentStatus'
+import AttendanceSection from './AttendanceSection'
 
 const TERM_COLORS = {
   '春学期': 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300',
@@ -27,16 +28,21 @@ const MEMO_MAX = 200
  * @param {string|null} props.enrollMemo     - 現在保存されているメモ
  * @param {(classId: string, memo: string) => void} [props.onMemoSave]
  *   メモ保存時コールバック。未登録授業（isSelected=false）では呼ばれない。
+ * @param {string|null} [props.enrollmentId] - enrollment シートの id 列（UUID）。出席管理に使用。
+ * @param {number|null} [props.sessionCount] - 授業コマ数。出席管理に使用。
  */
 export default function CourseModal({
   course, isSelected, isConflict, onToggle, onClose, toggling,
   enrollStatus, enrollmentVersion = 'legacy', onStatusChange,
-  isTemporary = false,
-  enrollMemo  = null,
-  onMemoSave  = null,
+  isTemporary  = false,
+  enrollMemo   = null,
+  onMemoSave   = null,
+  enrollmentId = null,
+  sessionCount = null,
 }) {
-  const isNewSchema = enrollmentVersion === 'new' && typeof onStatusChange === 'function'
-  const canMemo     = isNewSchema && isSelected && typeof onMemoSave === 'function'
+  const isNewSchema  = enrollmentVersion === 'new' && typeof onStatusChange === 'function'
+  const canMemo      = isNewSchema && isSelected && typeof onMemoSave === 'function'
+  const canAttendance = isNewSchema && isSelected && !!enrollmentId && !!sessionCount
 
   // ── スワイプページ管理 ──────────────────────────────────────────────────────
   const [activePage, setActivePage] = useState(0)
@@ -74,7 +80,7 @@ export default function CourseModal({
     }
   }, [canMemo, onMemoSave, course.class_id, memoText, memoState])
 
-  const totalPages = canMemo ? 2 : 1
+  const totalPages = (canMemo || canAttendance) ? 2 : 1
 
   return (
     <div
@@ -175,41 +181,42 @@ export default function CourseModal({
               ))}
             </div>
 
-            {/* タグ行 + メモボタン（タグの左に小さいピルとして配置） */}
-            {(course.tags || canMemo) && (
-              <div className="mb-3">
-                <div className="flex items-center mb-1">
+            {/* タグ行 + メモ・出欠席ボタン（対向配置） */}
+            {(course.tags || canMemo || canAttendance) && (
+              <div className="flex items-center gap-3 mb-3">
+                {/* 左: 卒業要件タグ */}
+                <div className="flex-1 min-w-0">
                   {course.tags && (
-                    <span className="text-xs text-gray-400 dark:text-slate-500 font-semibold">卒業要件タグ</span>
-                  )}
-                  {/* メモボタン: 右端に丸ボタン */}
-                  {canMemo && (
-                    <button
-                      onClick={() => goToPage(1)}
-                      className={`ml-auto flex flex-col items-center justify-center w-12 h-12 rounded-full text-lg
-                                  transition-all active:scale-95 flex-shrink-0 shadow-sm ${
-                        memoText
-                          ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-500 dark:text-blue-400'
-                          : 'bg-gray-100 dark:bg-white/[0.08] text-gray-400 dark:text-slate-500'
-                      }`}
-                    >
-                      📝
-                      <span className={`text-[9px] font-semibold leading-none mt-0.5 ${
-                        memoText ? 'text-blue-500 dark:text-blue-400' : 'text-gray-400 dark:text-slate-500'
-                      }`}>
-                        {memoText ? 'あり' : 'メモ'}
-                      </span>
-                    </button>
+                    <>
+                      <span className="text-xs text-gray-400 dark:text-slate-500 font-semibold">卒業要件タグ</span>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {String(course.tags).split('|').map(t => (
+                          <span key={t} className="text-[10px] bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 px-1.5 py-0.5 rounded-full border border-blue-100 dark:border-blue-500/20">
+                            {t.trim()}
+                          </span>
+                        ))}
+                      </div>
+                    </>
                   )}
                 </div>
-                {course.tags && (
-                  <div className="flex flex-wrap gap-1">
-                    {String(course.tags).split('|').map(t => (
-                      <span key={t} className="text-[10px] bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 px-1.5 py-0.5 rounded-full border border-blue-100 dark:border-blue-500/20">
-                        {t.trim()}
-                      </span>
-                    ))}
-                  </div>
+                {/* 右: 丸ボタン */}
+                {(canMemo || canAttendance) && (
+                  <button
+                    onClick={() => goToPage(1)}
+                    className={`flex-shrink-0 flex flex-col items-center justify-center w-20 h-20 rounded-full
+                                transition-all active:scale-95 shadow-sm ${
+                      memoText
+                        ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-500 dark:text-blue-400'
+                        : 'bg-gray-100 dark:bg-white/[0.08] text-gray-400 dark:text-slate-500'
+                    }`}
+                  >
+                    <span className="text-3xl leading-none">{canAttendance ? '📋' : '📝'}</span>
+                    <span className={`text-[10px] font-semibold leading-none mt-1.5 ${
+                      memoText ? 'text-blue-500 dark:text-blue-400' : 'text-gray-400 dark:text-slate-500'
+                    }`}>
+                      {canAttendance ? 'メモ・出欠席' : 'メモ'}
+                    </span>
+                  </button>
                 )}
               </div>
             )}
@@ -316,70 +323,86 @@ export default function CourseModal({
             )}
           </div>
 
-          {/* ── Page 2: メモ ──────────────────────────────────────────────── */}
-          {canMemo && (
+          {/* ── Page 2: メモ + 出席管理 ──────────────────────────────────── */}
+          {(canMemo || canAttendance) && (
             <div
               className="min-w-full overflow-y-auto px-5 pb-8 flex flex-col"
               style={{ scrollSnapAlign: 'start' }}
             >
               <div className="pt-1 mb-3">
                 <div className="text-sm font-bold text-gray-900 dark:text-slate-100 mb-0.5">
-                  📝 メモ
+                  📋 メモ
                 </div>
                 <div className="text-xs text-gray-400 dark:text-slate-500">
                   {course.course_name}
                 </div>
               </div>
 
-              <textarea
-                value={memoText}
-                onChange={e => {
-                  setMemoText(e.target.value.slice(0, MEMO_MAX))
-                  setMemoSaved(false)
-                }}
-                placeholder="授業の感想、試験対策、出席状況など…"
-                rows={7}
-                className="w-full rounded-2xl border border-gray-200 dark:border-white/[0.12]
-                           bg-gray-50 dark:bg-[#252839] text-sm text-gray-800 dark:text-slate-200
-                           placeholder-gray-300 dark:placeholder-slate-600
-                           px-4 py-3 resize-none leading-relaxed outline-none
-                           focus:border-blue-400 dark:focus:border-blue-500/60
-                           focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-500/10
-                           transition-all"
-              />
-
-              {/* 文字数カウンター */}
-              <div className="flex justify-end mt-1 mb-4">
-                <span className={`text-xs ${
-                  memoText.length >= MEMO_MAX
-                    ? 'text-red-400 dark:text-red-400'
-                    : 'text-gray-300 dark:text-slate-600'
-                }`}>
-                  {memoText.length} / {MEMO_MAX}
-                </span>
-              </div>
-
-              {/* エラー表示 */}
-              {memoState === 'error' && (
-                <div className="mb-3 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 text-xs text-red-600 dark:text-red-400">
-                  ⚠ {memoError}
-                </div>
+              {/* メモ textarea */}
+              {canMemo && (
+                <>
+                  <textarea
+                    value={memoText}
+                    onChange={e => {
+                      setMemoText(e.target.value.slice(0, MEMO_MAX))
+                      setMemoState('idle')
+                    }}
+                    placeholder="授業の感想、試験対策など…"
+                    rows={canAttendance ? 3 : 7}
+                    className="w-full rounded-2xl border border-gray-200 dark:border-white/[0.12]
+                               bg-gray-50 dark:bg-[#252839] text-sm text-gray-800 dark:text-slate-200
+                               placeholder-gray-300 dark:placeholder-slate-600
+                               px-4 py-3 resize-none leading-relaxed outline-none
+                               focus:border-blue-400 dark:focus:border-blue-500/60
+                               focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-500/10
+                               transition-all"
+                  />
+                  <div className="flex justify-end mt-1 mb-3">
+                    <span className={`text-xs ${
+                      memoText.length >= MEMO_MAX
+                        ? 'text-red-400 dark:text-red-400'
+                        : 'text-gray-300 dark:text-slate-600'
+                    }`}>
+                      {memoText.length} / {MEMO_MAX}
+                    </span>
+                  </div>
+                </>
               )}
 
-              {/* 保存ボタン */}
-              <button
-                onClick={handleMemoSave}
-                disabled={memoState === 'saving'}
-                className={`w-full py-3.5 rounded-2xl text-sm font-bold transition-all ${
-                  memoState === 'saved'
-                    ? 'bg-emerald-500 text-white'
-                    : memoState === 'saving'
-                      ? 'bg-blue-300 dark:bg-blue-500/50 text-white cursor-not-allowed'
-                      : 'bg-blue-500 hover:bg-blue-600 active:scale-[0.98] text-white'
-                }`}
-              >
-                {memoState === 'saving' ? '保存中…' : memoState === 'saved' ? '✓ 保存しました' : 'メモを保存する'}
-              </button>
+              {/* 出席管理 */}
+              {canAttendance && (
+                <>
+                  {canMemo && <div className="mb-3 border-t border-gray-100 dark:border-white/[0.08]" />}
+                  <AttendanceSection
+                    enrollmentId={enrollmentId}
+                    sessionCount={sessionCount}
+                  />
+                </>
+              )}
+
+              {/* 保存ボタン（メモがある場合のみ・最下部に固定） */}
+              {canMemo && (
+                <div className="mt-auto pt-4">
+                  {memoState === 'error' && (
+                    <div className="mb-3 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 text-xs text-red-600 dark:text-red-400">
+                      ⚠ {memoError}
+                    </div>
+                  )}
+                  <button
+                    onClick={handleMemoSave}
+                    disabled={memoState === 'saving'}
+                    className={`w-full py-3.5 rounded-2xl text-sm font-bold transition-all ${
+                      memoState === 'saved'
+                        ? 'bg-emerald-500 text-white'
+                        : memoState === 'saving'
+                          ? 'bg-blue-300 dark:bg-blue-500/50 text-white cursor-not-allowed'
+                          : 'bg-blue-500 hover:bg-blue-600 active:scale-[0.98] text-white'
+                    }`}
+                  >
+                    {memoState === 'saving' ? '保存中…' : memoState === 'saved' ? '✓ 保存しました' : (canAttendance ? 'メモ・出欠席を保存する' : 'メモを保存する')}
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -1412,6 +1412,10 @@ export default function TimetableV2({
             (enrollment ?? []).find(e => e.class_id === catalogDetail.classId)?.memo ?? null
           }
           onMemoSave={onMemoSave ?? undefined}
+          enrollmentId={
+            (enrollment ?? []).find(e => e.class_id === catalogDetail.classId)?.enrollment_id ?? null
+          }
+          sessionCount={catalogDetail.course?.session_count ?? null}
         />
       )}
 

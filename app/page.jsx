@@ -334,6 +334,21 @@ export default function Page() {
     dedupingInterval:  5_000,
   })
 
+  // ── enrollment id バックフィル ────────────────────────────────────────────
+  // 実装前に登録された既存行に UUID を自動付与する（id列が空の行のみ対象）。
+  // データロード後に一度だけ実行し、更新があれば SWR を再検証する。
+  const backfillDoneRef = useRef(false)
+  useEffect(() => {
+    if (!data?.enrollment || backfillDoneRef.current) return
+    const hasBlankId = data.enrollment.some(e => !e.enrollment_id)
+    if (!hasBlankId) return
+    backfillDoneRef.current = true
+    fetch('/api/enrollment/backfill-ids', { method: 'POST' })
+      .then(r => r.json())
+      .then(({ updated }) => { if (updated > 0) mutate() })
+      .catch(() => {})
+  }, [data?.enrollment, mutate])
+
   // departments master から id → label マップを構築
   // ラベル解決は常にこのマップ経由（ハードコード禁止）
   const departmentsMap = useMemo(

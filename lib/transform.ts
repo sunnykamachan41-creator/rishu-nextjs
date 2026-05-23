@@ -39,6 +39,7 @@ export interface NormalizedCourse {
   class: string
   intructor: string
   note: string
+  session_count: number | null
   [key: string]: unknown
 }
 
@@ -63,6 +64,8 @@ export interface NormalizedEnrollment {
   is_temporary: boolean
   /** 自由記述メモ（enrollment シートの memo 列）。未入力なら null。 */
   memo: string | null
+  /** enrollment シートの id 列（UUID）。出席管理の外部キー。列が存在しない行は null。 */
+  enrollment_id: string | null
 }
 
 /**
@@ -177,11 +180,15 @@ export function normalizeCourse(row: Record<string, string>): NormalizedCourse {
   const eyNum    = rawEY ? parseInt(rawEY, 10) : NaN
   const end_year   = Number.isFinite(eyNum) ? eyNum : null
 
+  const rawSC = row.session_count || ''
+  const scNum = rawSC ? parseInt(rawSC, 10) : NaN
+  const session_count = Number.isFinite(scNum) ? scNum : null
+
   const KNOWN_KEYS = new Set([
     'class_id','course_id','course_name','credits','term','term_code',
     'normalized_time','day_time','room','raw_category','category',
     'sub_category','tags','year','academic_year','start_year','end_year',
-    'class','intructor','instructor','note',
+    'class','intructor','instructor','note','session_count',
   ])
 
   return {
@@ -204,6 +211,7 @@ export function normalizeCourse(row: Record<string, string>): NormalizedCourse {
     class:           (row.class || '').trim(),
     intructor:       (row.intructor || row.instructor || '').trim(),
     note:            (row.note || '').trim(),
+    session_count,
     ...Object.fromEntries(
       Object.entries(row).filter(([k]) => !KNOWN_KEYS.has(k))
     ),
@@ -249,6 +257,7 @@ export function normalizeEnrollmentRow(
     const rawMemo = row.memo ?? ''
     const memo    = rawMemo.trim() ? rawMemo.trim() : null
 
+    const rawEnrollId = (row.id || '').trim()
     return {
       class_id:      classId,
       course_id:     courseId,
@@ -258,6 +267,7 @@ export function normalizeEnrollmentRow(
       academic_year: Number.isFinite(ayNum) ? ayNum : null,
       is_temporary,
       memo,
+      enrollment_id: rawEnrollId || null,
     }
   } else {
     // Legacy: class_id + selected
@@ -277,6 +287,7 @@ export function normalizeEnrollmentRow(
       academic_year: null,
       is_temporary:  false,
       memo:          null,
+      enrollment_id: null,
     }
   }
 }
