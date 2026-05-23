@@ -1,4 +1,5 @@
 'use client'
+import { useSwipeDown } from '@/lib/useSwipeDown'
 
 /**
  * ReEnrollModal
@@ -19,6 +20,7 @@
  * @param {() => void} props.onClose
  */
 export default function ReEnrollModal({ course, canReEnroll, toggling, onSelect, onClose }) {
+  const { sheetRef, handleProps } = useSwipeDown(onClose)
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center"
@@ -26,10 +28,11 @@ export default function ReEnrollModal({ course, canReEnroll, toggling, onSelect,
       onClick={onClose}
     >
       <div
+        ref={sheetRef}
         className="bg-white dark:bg-[#1f2235] rounded-t-3xl w-full p-5 pb-8"
         onClick={e => e.stopPropagation()}
       >
-        <div className="w-10 h-1 bg-gray-200 dark:bg-white/10 rounded-full mx-auto mb-5" />
+        <div {...handleProps} className="w-10 h-1 bg-gray-200 dark:bg-white/10 rounded-full mx-auto mb-5" />
 
         {/* Title */}
         <div className="text-base font-bold text-gray-900 dark:text-slate-100 mb-1">

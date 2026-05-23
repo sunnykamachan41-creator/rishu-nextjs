@@ -1,5 +1,6 @@
 'use client'
 import { useState, useMemo } from 'react'
+import { useSwipeDown } from '@/lib/useSwipeDown'
 import {
   EXEMPTION_DEFS,
   EXEMPTION_TYPE_ORDER,
@@ -278,11 +279,13 @@ export default function ExemptionModal({
 
   // ── render ────────────────────────────────────────────────────────────────
 
+  const { sheetRef: exemptSheetRef, handleProps: exemptHandleProps } = useSwipeDown(onClose)
+
   return (
     <div className="fixed inset-0 z-50 flex items-end" style={{ maxWidth: 430, margin: '0 auto' }}>
       <div className="absolute inset-0 bg-black/50" onClick={view === 'list' ? onClose : undefined} />
-      <div className="relative w-full bg-white dark:bg-[#1f2235] rounded-t-3xl flex flex-col" style={{ maxHeight: '90dvh' }}>
-        <div className="w-10 h-1 bg-gray-200 dark:bg-white/10 rounded-full mx-auto mt-2.5 flex-shrink-0" />
+      <div ref={exemptSheetRef} className="relative w-full bg-white dark:bg-[#1f2235] rounded-t-3xl flex flex-col" style={{ maxHeight: '90dvh' }}>
+        <div {...exemptHandleProps} className="w-10 h-1 bg-gray-200 dark:bg-white/10 rounded-full mx-auto mt-2.5 mb-0 flex-shrink-0" />
 
         {view === 'list' && (
           <ListView

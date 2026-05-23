@@ -1,5 +1,6 @@
 'use client'
 import { useState, useMemo } from 'react'
+import { useSwipeDown } from '@/lib/useSwipeDown'
 import CourseModal from './CourseModal'
 import { isCourseEligible } from '@/lib/eligibility'
 
@@ -93,6 +94,8 @@ export default function AddCourseModal({
   academicYear, grade, displayGrade, courses, existingEntries,
   onAdd, onClose,
 }) {
+  const { sheetRef, handleProps } = useSwipeDown(onClose)
+
   const [query,          setQuery]         = useState('')
   const [customTitle,    setCustomTitle]   = useState('')
   const [customMode,     setCustomMode]    = useState(false)
@@ -194,12 +197,12 @@ export default function AddCourseModal({
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
 
       {/* ボトムシート */}
-      <div className="relative w-full bg-white dark:bg-[#1f2235] rounded-t-3xl flex flex-col"
+      <div ref={sheetRef} className="relative w-full bg-white dark:bg-[#1f2235] rounded-t-3xl flex flex-col"
         style={{ maxHeight: '80dvh' }}>
 
         {/* ── ハンドル + ヘッダー ──────────────────────────────────────────── */}
         <div className="flex-shrink-0 px-4 pt-2 pb-3 border-b border-gray-100 dark:border-white/[0.07]">
-          <div className="w-10 h-1 bg-gray-200 dark:bg-white/10 rounded-full mx-auto mb-3" />
+          <div {...handleProps} className="w-10 h-1 bg-gray-200 dark:bg-white/10 rounded-full mx-auto mb-3" />
 
           <div className="flex items-start justify-between">
             <div>

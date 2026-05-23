@@ -522,6 +522,19 @@ export default function TimetableV2({
           )
           .map(e => `${e.class_id}|${e.academic_year ?? ''}`)
       )
+      // 通年の時間外授業は春学期に登録されていても秋学期に表示する
+      if (semester === 'fall') {
+        enrollment
+          .filter(e =>
+            (e.year === selectedGrade || e.year === null) &&
+            e.semester === 'spring'
+          )
+          .forEach(e => {
+            const ck = `${e.class_id}|${e.academic_year ?? ''}`
+            const course = courses.find(c => `${c.class_id}|${c.academic_year ?? ''}` === ck)
+            if (course?.term === '通年') activeSet.add(ck)
+          })
+      }
     } else {
       activeSet = new Set(selectedIds)
     }
@@ -598,6 +611,12 @@ export default function TimetableV2({
 
   const handleAddExtra = useCallback((classId) => {
     if (classId && onToggleEnrollment) {
+      // 将来年度シミュレーションモードでは確認ダイアログを挟む
+      if (isFutureYearMode) {
+        setPendingTempAdd({ classId })
+        setExtraAddOpen(false)
+        return
+      }
       const course = courses?.find(c => c.class_id === classId && (academicYear == null || c.academic_year === academicYear))
       const ck = `${classId}|${course?.academic_year ?? ''}`
       if (!selectedIds?.includes(ck)) {
@@ -606,7 +625,7 @@ export default function TimetableV2({
       }
     }
     setExtraAddOpen(false)
-  }, [courses, academicYear, onToggleEnrollment, selectedIds, onEntriesChange])
+  }, [courses, academicYear, onToggleEnrollment, selectedIds, onEntriesChange, isFutureYearMode])
 
   const handleRemoveExtra = useCallback((classId) => {
     if (classId && onToggleEnrollment) {
@@ -1554,7 +1573,7 @@ export default function TimetableV2({
           grade={selectedGrade}
           displayGrade={displayGrade ?? selectedGrade}
           semester={semester}
-          academicYear={academicYear}
+          academicYear={isFutureYearMode ? latestYear : academicYear}
           selectedIds={selectedIds}
           onAdd={handleAddExtra}
           onClose={() => setExtraAddOpen(false)}
@@ -1629,6 +1648,8 @@ function AddExtraModal({ courses, grade, displayGrade, semester, academicYear, s
   const extraList = useMemo(() => {
     return courses.filter(c => {
       const t = c.normalized_time
+      // 通年授業は春学期からのみ登録可（秋学期からは春に登録済みのものが表示されるだけ）
+      if (c.term === '通年' && semester === 'fall') return false
       return (!t || t === 'EXTRA' || t === '0') &&
              c.course_name?.trim() &&   // 授業名なしを除外
              isCourseEligible(c, grade, semester) &&

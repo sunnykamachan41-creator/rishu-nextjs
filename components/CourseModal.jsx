@@ -2,6 +2,7 @@
 import { useState, useRef, useCallback } from 'react'
 import { STATUS_CONFIG, DIRECT_STATUSES } from '@/lib/enrollmentStatus'
 import AttendanceSection from './AttendanceSection'
+import { useSwipeDown } from '@/lib/useSwipeDown'
 
 const TERM_COLORS = {
   '春学期': 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300',
@@ -81,6 +82,7 @@ export default function CourseModal({
   }, [canMemo, onMemoSave, course.class_id, memoText, memoState])
 
   const totalPages = (canMemo || canAttendance) ? 2 : 1
+  const { sheetRef, handleProps } = useSwipeDown(onClose)
 
   return (
     <div
@@ -89,12 +91,13 @@ export default function CourseModal({
       onClick={onClose}
     >
       <div
+        ref={sheetRef}
         className="bg-white dark:bg-[#1f2235] rounded-t-3xl w-full animate-slide-up overflow-hidden flex flex-col"
         style={{ maxHeight: '90dvh' }}
         onClick={e => e.stopPropagation()}
       >
         {/* ── ドラッグハンドル + ページドット ───────────────────────────────── */}
-        <div className="flex-shrink-0 pt-3 pb-2 flex flex-col items-center gap-2">
+        <div {...handleProps} className="flex-shrink-0 pt-3 pb-2 flex flex-col items-center gap-2">
           <div className="w-10 h-1 bg-gray-200 dark:bg-white/10 rounded-full" />
           {totalPages > 1 && (
             <div className="flex gap-1.5">
