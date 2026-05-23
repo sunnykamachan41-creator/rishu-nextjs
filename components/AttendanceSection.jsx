@@ -185,16 +185,22 @@ export default function AttendanceSection({ enrollmentId, sessionCount }) {
           enrollmentId={enrollmentId}
           onClose={() => setOpenSn(null)}
           onSave={(memo) => {
-            const sn     = openSn
-            const status = recordMap.get(String(sn))?.status || ''
+            const sn       = openSn
+            const status   = recordMap.get(String(sn))?.status || ''
+            const hasRecord = !!recordMap.get(String(sn))
             // メモだけでも楽観更新・保存（未記録回の先行メモを許容）
             mutate(prev => {
               const exists = prev.find(r => String(r.session_number) === String(sn))
-              if (exists) return prev.map(r => String(r.session_number) === String(sn) ? { ...r, memo } : r)
+              if (exists) {
+                // メモ・ステータス両方空 → レコード削除
+                if (!memo && !status) return prev.filter(r => String(r.session_number) !== String(sn))
+                return prev.map(r => String(r.session_number) === String(sn) ? { ...r, memo } : r)
+              }
               if (memo) return [...prev, { session_number: sn, status: '', memo }]
               return prev
             }, { revalidate: false })
-            if (memo || status) {
+            // 既存レコードがある場合は空メモでも API を呼んで削除させる
+            if (memo || status || hasRecord) {
               fetch('/api/attendance', {
                 method:  'POST',
                 headers: { 'Content-Type': 'application/json' },

@@ -29,10 +29,11 @@ export default function ReEnrollModal({ course, canReEnroll, toggling, onSelect,
     >
       <div
         ref={sheetRef}
+        {...handleProps}
         className="bg-white dark:bg-[#1f2235] rounded-t-3xl w-full p-5 pb-8"
         onClick={e => e.stopPropagation()}
       >
-        <div {...handleProps} className="w-10 h-1 bg-gray-200 dark:bg-white/10 rounded-full mx-auto mb-5" />
+        <div className="w-10 h-1 bg-gray-200 dark:bg-white/10 rounded-full mx-auto mb-5" />
 
         {/* Title */}
         <div className="text-base font-bold text-gray-900 dark:text-slate-100 mb-1">

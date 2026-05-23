@@ -92,12 +92,13 @@ export default function CourseModal({
     >
       <div
         ref={sheetRef}
+        {...handleProps}
         className="bg-white dark:bg-[#1f2235] rounded-t-3xl w-full animate-slide-up overflow-hidden flex flex-col"
         style={{ maxHeight: '90dvh' }}
         onClick={e => e.stopPropagation()}
       >
         {/* ── ドラッグハンドル + ページドット ───────────────────────────────── */}
-        <div {...handleProps} className="flex-shrink-0 pt-3 pb-2 flex flex-col items-center gap-2">
+        <div className="flex-shrink-0 pt-3 pb-2 flex flex-col items-center gap-2">
           <div className="w-10 h-1 bg-gray-200 dark:bg-white/10 rounded-full" />
           {totalPages > 1 && (
             <div className="flex gap-1.5">

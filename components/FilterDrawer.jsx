@@ -121,11 +121,11 @@ export default function FilterDrawer({ open, onClose, filters, onChange, courses
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
 
       {/* ボトムシート */}
-      <div ref={sheetRef} className="absolute bottom-0 left-0 right-0 bg-white dark:bg-[#1f2235] rounded-t-3xl flex flex-col"
+      <div ref={sheetRef} {...handleProps} className="absolute bottom-0 left-0 right-0 bg-white dark:bg-[#1f2235] rounded-t-3xl flex flex-col"
         style={{ maxHeight: '88dvh' }}>
         {/* ハンドル + ヘッダー */}
         <div className="flex-shrink-0 px-4 pt-2 pb-3 border-b border-gray-100 dark:border-white/[0.07]">
-          <div {...handleProps} className="w-10 h-1 bg-gray-200 dark:bg-white/10 rounded-full mx-auto mb-3" />
+          <div className="w-10 h-1 bg-gray-200 dark:bg-white/10 rounded-full mx-auto mb-3" />
           <div className="flex items-center justify-between">
             <span className="text-base font-bold text-gray-900 dark:text-slate-100">絞り込み</span>
             <button
