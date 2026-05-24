@@ -624,7 +624,7 @@ export default function SupportPage() {
 
   return (
     <div
-      className="h-dvh bg-gray-50 dark:bg-[#12141e] flex flex-col"
+      className="h-full bg-gray-50 dark:bg-[#12141e] flex flex-col"
       style={{ maxWidth: 430, margin: '0 auto' }}
     >
       {/* ヘッダー */}

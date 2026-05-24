@@ -9,7 +9,7 @@ export const metadata = {
   appleWebApp: {
     capable:         true,
     title:           '履修管理',
-    statusBarStyle:  'black-translucent',
+    statusBarStyle:  'default',
   },
   // スマートフォンの電話番号自動リンクを無効化
   formatDetection: { telephone: false },
@@ -51,7 +51,7 @@ const NO_BOUNCE_SCRIPT = `
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="ja" className="h-full">
+    <html lang="ja" className="h-dvh">
       <head>
         <script dangerouslySetInnerHTML={{ __html: NO_BOUNCE_SCRIPT }} />
       </head>

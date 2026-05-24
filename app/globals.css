@@ -8,14 +8,31 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-html, body, #__next {
-  height: 100%;
-  /* PWA: ラバーバンド（バウンス）を完全に無効化 */
+html {
+  /* PWA: viewportFit:cover の全画面高さ（safe area を含む） */
+  height: 100dvh;
   overflow: hidden;
   overscroll-behavior: none;
-  /* iOS Safari 追加対策 */
   -webkit-overflow-scrolling: auto;
   touch-action: pan-x pan-y;
+}
+
+body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: auto;
+  touch-action: pan-x pan-y;
+  /* iOS PWA: ステータスバー（上）とホームインジケーター（下）の safe area を確保 */
+  padding-top:    env(safe-area-inset-top,    0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left:   env(safe-area-inset-left,   0px);
+  padding-right:  env(safe-area-inset-right,  0px);
+}
+
+#__next {
+  height: 100%;
+  overflow: hidden;
 }
 
 /* ── デザイントークン ──────────────────────────────────────────────────────── */

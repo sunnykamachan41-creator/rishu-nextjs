@@ -989,7 +989,7 @@ export default function Page() {
   // ── Main layout ────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-col" style={{ height: '100dvh' }}
+    <div className="flex flex-col h-full"
       onTouchStart={handleEdgeTouchStart}
       onTouchEnd={handleEdgeTouchEnd}
     >
