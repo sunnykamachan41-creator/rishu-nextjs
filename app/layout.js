@@ -30,8 +30,19 @@ export const viewport = {
 
 // iOS PWA: ドキュメントレベルの touchmove バウンスを防ぐインラインスクリプト
 // スクロール可能な子要素（overflow: auto/scroll）内のタッチは通過させる
+// + ダークモードフラッシュ防止: React ハイドレーション前に .dark クラスを適用
 const NO_BOUNCE_SCRIPT = `
 (function() {
+  try {
+    var s = localStorage.getItem('rishu-ui-settings');
+    if (s) {
+      var p = JSON.parse(s);
+      if (p && p.state && p.state.darkMode === true) {
+        document.documentElement.classList.add('dark');
+      }
+    }
+  } catch(e) {}
+
   document.addEventListener('touchmove', function(e) {
     var el = e.target;
     while (el && el !== document.body) {

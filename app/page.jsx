@@ -2,6 +2,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import useSWR from 'swr'
 import { useSession, signIn } from 'next-auth/react'
+import SplashScreen from '@/components/SplashScreen'
 import TimetableV2 from '@/components/TimetableV2'
 import CourseList from '@/components/CourseList'
 import GraduationTabV2 from '@/components/GraduationTabV2'
@@ -61,7 +62,11 @@ export default function Page() {
   // JWT callback で採番・格納された student_id（例: student_001）を使う
   const studentId = session?.user?.student_id ?? ''
 
-  const [tab, setTab] = useState('timetable')
+  // ── スプラッシュスクリーン制御 ────────────────────────────────────────────────
+  const [splashExiting, setSplashExiting] = useState(false)
+  const [splashDone,    setSplashDone]    = useState(false)
+
+const [tab, setTab] = useState('timetable')
   const [toggling, setToggling] = useState(null) // classId currently being toggled
   const [drawerOpen, setDrawerOpen] = useState(false)
   // 卒業要件タブの初期モード（'graduation' | 'license'）。
@@ -344,6 +349,27 @@ export default function Page() {
     revalidateOnFocus: !hasPendingChanges,
     dedupingInterval:  5_000,
   })
+
+  // ── スプラッシュ終了トリガー ────────────────────────────────────────────────
+  // 認証確定 + データ取得完了 / 未ログイン / エラー のいずれかで退場アニメーションを開始する。
+  // ※ 2 つの Effect に分離: タイマーが setSplashExiting 起因の再レンダーでキャンセルされるのを防ぐ
+  const splashStartedRef = useRef(false)
+  useEffect(() => {
+    const ready =
+      (sessionStatus === 'authenticated' && !isLoading && !!data) ||
+      sessionStatus === 'unauthenticated' ||
+      !!error
+    if (!ready || splashStartedRef.current) return
+    splashStartedRef.current = true
+    setSplashExiting(true)
+  }, [sessionStatus, isLoading, data, error])
+
+  // splashExiting が true になったら 550ms 後（progress→100% + フェードアウト完了）に done にする
+  useEffect(() => {
+    if (!splashExiting) return
+    const t = setTimeout(() => setSplashDone(true), 550)
+    return () => clearTimeout(t)
+  }, [splashExiting])
 
   // ── enrollment id バックフィル ────────────────────────────────────────────
   // 実装前に登録された既存行に UUID を自動付与する（id列が空の行のみ対象）。
@@ -915,15 +941,8 @@ export default function Page() {
 
   // ── Render states ─────────────────────────────────────────────────────────
 
-  // ── セッション確認中 ────────────────────────────────────────────────────
-  if (sessionStatus === 'loading') {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen gap-3">
-        <div className="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin" style={{ borderWidth: 3 }} />
-        <div className="text-sm text-gray-500 dark:text-slate-400">認証情報を確認中…</div>
-      </div>
-    )
-  }
+  // ── 起動ローディング（認証確認中・データ取得中）────────────────────────────
+  if (!splashDone) return <SplashScreen exiting={splashExiting} />
 
   // ── 未ログイン ───────────────────────────────────────────────────────────
   if (sessionStatus === 'unauthenticated') {
@@ -972,14 +991,8 @@ export default function Page() {
     )
   }
 
-  if (isLoading || !data) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen gap-3">
-        <div className="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin" style={{ borderWidth: 3 }} />
-        <div className="text-sm text-gray-500 dark:text-slate-400">Google Sheets からデータ取得中…</div>
-      </div>
-    )
-  }
+  // splashDone になった時点で data は必ず存在するが、念のためガード
+  if (!data) return null
 
   const { courses, selectedIds, totalCredits } = data
   // New-schema fields (gracefully absent in legacy mode)
