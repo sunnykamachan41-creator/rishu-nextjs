@@ -972,9 +972,9 @@ const [tab, setTab] = useState('timetable')
                style={{ fontSize: 28, letterSpacing: '0.14em' }}>
               YORA
             </p>
-            <p className="text-[9px] font-light uppercase text-slate-400 dark:text-slate-600"
-               style={{ letterSpacing: '0.28em' }}>
-              Tokyo Gakugei Univ. Campus Life
+            <p className="text-[11px] font-light text-slate-400 dark:text-slate-600"
+               style={{ letterSpacing: '0.08em' }}>
+              学芸が苦行を、学芸学業へ。
             </p>
           </div>
 

@@ -1,6 +1,14 @@
 import "./globals.css";
 import { Suspense } from 'react'
 import { Providers } from './providers'
+import { League_Spartan } from 'next/font/google'
+
+const leagueSpartan = League_Spartan({
+  subsets:  ['latin'],
+  weight:   ['700'],
+  variable: '--font-league-spartan',
+  display:  'swap',
+})
 
 export const metadata = {
   title:       'YORA',
@@ -62,7 +70,7 @@ const NO_BOUNCE_SCRIPT = `
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="ja" className="h-dvh">
+    <html lang="ja" className={`h-dvh ${leagueSpartan.variable}`}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: NO_BOUNCE_SCRIPT }} />
       </head>

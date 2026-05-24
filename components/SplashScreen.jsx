@@ -92,18 +92,24 @@ export default function SplashScreen({ exiting = false }) {
         >
           {/* アプリ名 */}
           <p
-            className="font-semibold text-slate-900 dark:text-white"
-            style={{ fontSize: 28, letterSpacing: '0.14em' }}
+            className="text-[#202f51] dark:text-white"
+            style={{
+              fontFamily:    'var(--font-league-spartan)',
+              fontSize:      36,
+              fontWeight:    700,
+              letterSpacing: '0.05em',
+              lineHeight:    1,
+            }}
           >
             YORA
           </p>
 
           {/* サブタイトル */}
           <p
-            className="text-[9px] font-light uppercase text-slate-400 dark:text-slate-600"
-            style={{ letterSpacing: '0.28em' }}
+            className="text-[11px] font-light text-slate-400 dark:text-slate-600"
+            style={{ letterSpacing: '0.08em' }}
           >
-            Tokyo Gakugei Univ. Campus Life
+            学芸が苦行を、学芸学業へ。
           </p>
 
           {/* プログレスバー */}
