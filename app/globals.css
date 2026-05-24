@@ -23,11 +23,8 @@ body {
   overscroll-behavior: none;
   -webkit-overflow-scrolling: auto;
   touch-action: pan-x pan-y;
-  /* iOS PWA: ステータスバー（上）とホームインジケーター（下）の safe area を確保 */
-  padding-top:    env(safe-area-inset-top,    0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-  padding-left:   env(safe-area-inset-left,   0px);
-  padding-right:  env(safe-area-inset-right,  0px);
+  /* iOS PWA: ステータスバー上部の safe area を確保（viewportFit:cover 用） */
+  padding-top: env(safe-area-inset-top, 0px);
 }
 
 #__next {
