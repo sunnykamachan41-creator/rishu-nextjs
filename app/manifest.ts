@@ -2,9 +2,9 @@ import type { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name:             '履修管理',
-    short_name:       '履修管理',
-    description:      'Google Sheets 連携 履修管理アプリ',
+    name:             'YORA',
+    short_name:       'YORA',
+    description:      '学芸大学生のための履修管理アプリ',
     start_url:        '/',
     display:          'standalone',
     orientation:      'portrait',

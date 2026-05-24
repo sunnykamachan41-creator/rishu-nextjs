@@ -11,22 +11,19 @@ import { useState, useEffect, useRef } from 'react'
  */
 export default function SplashScreen({ exiting = false }) {
   const [progress, setProgress] = useState(0)
-  const [mounted,  setMounted]  = useState(false)   // フェードイン制御
-  const rafRef  = useRef(null)
+  const [mounted,  setMounted]  = useState(false)
+  const rafRef   = useRef(null)
   const startRef = useRef(null)
 
-  // マウント直後: 1 フレーム後にフェードイン開始（初期 opacity-0 を確実に適用するため）
   useEffect(() => {
     const id = requestAnimationFrame(() => setMounted(true))
     return () => cancelAnimationFrame(id)
   }, [])
 
-  // プログレスバー: RAF で線形駆動
   useEffect(() => {
-    const DURATION = 2500   // 85% に到達するまでの ms
+    const DURATION = 2500
     const MAX      = 85
     startRef.current = Date.now()
-
     const tick = () => {
       const elapsed = Date.now() - startRef.current
       const t = Math.min(elapsed / DURATION, 1)
@@ -37,7 +34,6 @@ export default function SplashScreen({ exiting = false }) {
     return () => cancelAnimationFrame(rafRef.current)
   }, [])
 
-  // exiting: アニメーション停止 → 100% にジャンプ
   useEffect(() => {
     if (!exiting) return
     cancelAnimationFrame(rafRef.current)
@@ -50,7 +46,6 @@ export default function SplashScreen({ exiting = false }) {
     <div
       className={[
         'fixed top-0 bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-[9999] flex flex-col',
-        /* ライト: 純白  /  ダーク: ほぼ黒・青みがかり */
         'bg-white dark:bg-[#0b0c12]',
         'transition-opacity duration-500 ease-out',
         visible ? 'opacity-100' : 'opacity-0',
@@ -59,8 +54,8 @@ export default function SplashScreen({ exiting = false }) {
       aria-live="polite"
     >
 
-      {/* ── 中央コンテンツ ─────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col items-center justify-center gap-8 px-8">
+      {/* ── 中央: アイコン + ブランド + プログレスバー ───────────── */}
+      <div className="flex-1 flex flex-col items-center justify-center gap-6 px-8">
 
         {/* アイコン */}
         <div
@@ -74,50 +69,63 @@ export default function SplashScreen({ exiting = false }) {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/icons/icon-512.png"
-            alt="履修管理アイコン"
+            alt="YORA"
             width={80}
             height={80}
             style={{
               borderRadius: 18,
-              /* ライト: 柔らかいインディゴシャドウ / ダーク: 深めのグロー */
               boxShadow: '0 16px 48px rgba(79,70,229,0.25), 0 4px 12px rgba(79,70,229,0.15)',
               display: 'block',
             }}
           />
         </div>
 
-        {/* テキスト */}
+        {/* ブランド + プログレスバー */}
         <div
           className={[
-            'flex flex-col items-center gap-2',
+            'flex flex-col items-center gap-3',
             'transition-all duration-700 delay-100 ease-out',
             visible ? 'opacity-100 translate-y-0'
                     : 'opacity-0  translate-y-5',
           ].join(' ')}
           style={{ willChange: 'transform, opacity' }}
         >
-          {/* サブタイトル: 大学名 */}
+          {/* アプリ名 */}
           <p
-            className="text-[10px] font-light uppercase
-                       text-slate-400 dark:text-slate-600"
-            style={{ letterSpacing: '0.32em' }}
+            className="font-semibold text-slate-900 dark:text-white"
+            style={{ fontSize: 28, letterSpacing: '0.14em' }}
           >
-            Tokyo Gakugei Univ.
+            YORA
           </p>
 
-          {/* メインタイトル */}
+          {/* サブタイトル */}
           <p
-            className="font-semibold
-                       text-slate-900 dark:text-white"
-            style={{ fontSize: 19, letterSpacing: '0.06em' }}
+            className="text-[9px] font-light uppercase text-slate-400 dark:text-slate-600"
+            style={{ letterSpacing: '0.28em' }}
           >
-            CAMPUS LIFE
+            Tokyo Gakugei Univ. Campus Life
           </p>
 
-          {/* 注意書き */}
+          {/* プログレスバー */}
           <div
-            className="mt-3 flex flex-col gap-1.5 text-left"
-            style={{ maxWidth: 240 }}
+            className="rounded-full overflow-hidden bg-slate-100 dark:bg-white/[0.08]"
+            style={{ width: 160, height: 2, marginTop: 4 }}
+          >
+            <div
+              className="h-full rounded-full bg-indigo-500 dark:bg-indigo-400"
+              style={{
+                width: `${progress}%`,
+                transition: exiting ? 'width 350ms ease-out' : undefined,
+              }}
+            />
+          </div>
+          {/* 注意事項 */}
+          <div
+            className={[
+              'flex flex-col gap-1.5 self-stretch mt-2',
+              'transition-opacity duration-700 delay-200 ease-out',
+              visible ? 'opacity-100' : 'opacity-0',
+            ].join(' ')}
           >
             {[
               '非公式アプリです。大学・学部とは無関係です。',
@@ -134,27 +142,9 @@ export default function SplashScreen({ exiting = false }) {
               </p>
             ))}
           </div>
+
         </div>
 
-      </div>
-
-      {/* ── プログレスバー（画面最下部 · 3px） ───────────────────── */}
-      <div
-        className="w-full flex-shrink-0"
-        style={{ height: 3 }}
-      >
-        {/* トラック */}
-        <div className="w-full h-full bg-slate-100 dark:bg-white/[0.06]">
-          {/* フィル */}
-          <div
-            className="h-full bg-indigo-500 dark:bg-indigo-400"
-            style={{
-              width: `${progress}%`,
-              /* 完了時のみ CSS トランジションで滑らかに 100% へ */
-              transition: exiting ? 'width 350ms ease-out' : undefined,
-            }}
-          />
-        </div>
       </div>
 
     </div>

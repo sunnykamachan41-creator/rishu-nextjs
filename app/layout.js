@@ -3,12 +3,12 @@ import { Suspense } from 'react'
 import { Providers } from './providers'
 
 export const metadata = {
-  title:       '履修管理',
-  description: 'Google Sheets 連携 履修管理アプリ',
+  title:       'YORA',
+  description: '学芸大学生のための履修管理アプリ · YORA',
   // iOS フルスクリーン PWA
   appleWebApp: {
     capable:         true,
-    title:           '履修管理',
+    title:           'YORA',
     statusBarStyle:  'default',
   },
   // スマートフォンの電話番号自動リンクを無効化

@@ -956,7 +956,7 @@ const [tab, setTab] = useState('timetable')
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/icons/icon-512.png"
-            alt="CAMPUS LIFE"
+            alt="YORA"
             width={80}
             height={80}
             style={{
@@ -968,13 +968,13 @@ const [tab, setTab] = useState('timetable')
 
           {/* ブランド */}
           <div className="flex flex-col items-center gap-1.5">
-            <p className="text-[10px] font-light uppercase text-slate-400 dark:text-slate-600"
-               style={{ letterSpacing: '0.32em' }}>
-              Tokyo Gakugei Univ.
-            </p>
             <p className="font-semibold text-slate-900 dark:text-white"
-               style={{ fontSize: 19, letterSpacing: '0.06em' }}>
-              CAMPUS LIFE
+               style={{ fontSize: 28, letterSpacing: '0.14em' }}>
+              YORA
+            </p>
+            <p className="text-[9px] font-light uppercase text-slate-400 dark:text-slate-600"
+               style={{ letterSpacing: '0.28em' }}>
+              Tokyo Gakugei Univ. Campus Life
             </p>
           </div>
 

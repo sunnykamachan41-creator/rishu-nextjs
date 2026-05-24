@@ -145,7 +145,7 @@ export default function ProfileDrawer({
             <AuthSection onClose={onClose} />
 
             <p className="text-center text-[11px] text-gray-300 dark:text-slate-600 pt-1">
-              履修管理アプリ · 学芸大学
+              YORA · よーら · 学芸大学
             </p>
           </div>
         </div>
