@@ -3,16 +3,29 @@ import { Suspense } from 'react'
 import { Providers } from './providers'
 
 export const metadata = {
-  title: "履修管理",
-  description: "Google Sheets 連携 履修管理アプリ",
+  title:       '履修管理',
+  description: 'Google Sheets 連携 履修管理アプリ',
+  // iOS フルスクリーン PWA
+  appleWebApp: {
+    capable:         true,
+    title:           '履修管理',
+    statusBarStyle:  'black-translucent',
+  },
+  // スマートフォンの電話番号自動リンクを無効化
+  formatDetection: { telephone: false },
 };
 
 export const viewport = {
-  width: "device-width",
-  initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
-  viewportFit: "cover",
+  width:         'device-width',
+  initialScale:  1,
+  maximumScale:  1,
+  userScalable:  false,
+  viewportFit:   'cover',
+  // Android Chrome / Safari のテーマカラー（ライト・ダーク両対応）
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#4f46e5' },
+    { media: '(prefers-color-scheme: dark)',  color: '#1a1d27' },
+  ],
 };
 
 // iOS PWA: ドキュメントレベルの touchmove バウンスを防ぐインラインスクリプト
