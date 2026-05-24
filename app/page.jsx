@@ -974,7 +974,7 @@ const [tab, setTab] = useState('timetable')
             </p>
             <p className="text-[11px] font-light text-slate-400 dark:text-slate-600"
                style={{ letterSpacing: '0.08em' }}>
-              学芸が苦行を、学芸学業へ。
+              学芸が苦行を、学芸学業に。
             </p>
           </div>
 
