@@ -1,5 +1,6 @@
 'use client'
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
+import { motion } from 'framer-motion'
 import useSWR from 'swr'
 import { useSession, signIn } from 'next-auth/react'
 import SplashScreen from '@/components/SplashScreen'
@@ -1300,24 +1301,42 @@ const [tab, setTab] = useState('timetable')
 
       {/* Bottom nav */}
       <nav className="bg-white dark:bg-[#1a1d27] border-t border-gray-100 dark:border-white/[0.07] flex-shrink-0 nav-safe-bottom">
-        <div className="grid grid-cols-5">
+        <div className="relative grid grid-cols-5">
           {TABS.map(t => {
             const Icon = t.icon
             const active = tab === t.id
             return (
-              <button
+              <motion.button
                 key={t.id}
                 onClick={() => handleTabChange(t.id)}
-                className={`nav-btn flex flex-col items-center justify-center py-3 gap-1
-                            transition-colors active:scale-95
-                            ${active ? 'text-blue-500' : 'text-gray-400 dark:text-slate-500'}`}
+                whileTap={{ scale: 0.93 }}
+                transition={{ duration: 0.12, ease: [0.25, 0, 0, 1] }}
+                className="relative flex flex-col items-center justify-center py-3 gap-1 outline-none"
               >
-                <Icon active={active} />
-                <span className={`text-[11px] font-semibold leading-none
-                                  ${active ? 'text-blue-500' : 'text-gray-400 dark:text-slate-500'}`}>
+                {/* スライドするピル背景 — layoutId により隣タブへ滑らかに移動 */}
+                {active && (
+                  <motion.span
+                    layoutId="tab-indicator"
+                    className="absolute inset-x-1 inset-y-1 rounded-[14px]
+                               bg-blue-50 dark:bg-blue-500/[0.09]"
+                    style={{ zIndex: 0 }}
+                    transition={{ type: 'tween', duration: 0.22, ease: [0.25, 0, 0, 1] }}
+                  />
+                )}
+                {/* アイコン */}
+                <span className={`relative transition-colors duration-[180ms]
+                                  ${active ? 'text-blue-500' : 'text-gray-400 dark:text-slate-500'}`}
+                      style={{ zIndex: 1 }}>
+                  <Icon active={active} />
+                </span>
+                {/* ラベル */}
+                <span className={`relative text-[11px] font-semibold leading-none
+                                  transition-colors duration-[180ms]
+                                  ${active ? 'text-blue-500' : 'text-gray-400 dark:text-slate-500'}`}
+                      style={{ zIndex: 1 }}>
                   {t.label}
                 </span>
-              </button>
+              </motion.button>
             )
           })}
         </div>

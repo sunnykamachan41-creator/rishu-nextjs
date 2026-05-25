@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@types/react-window": "^1.8.8",
+    "framer-motion": "^12.40.0",
     "googleapis": "^171.4.0",
     "next": "16.2.6",
     "next-auth": "^4.24.14",
