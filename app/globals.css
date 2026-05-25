@@ -42,6 +42,9 @@ body {
   --c-text-1:     #0f172a;
   --c-text-2:     #475569;
   --c-text-3:     #94a3b8;
+  /* html / body の背景 = ヘッダー・ナビと同色に揃える変数
+     CSS カスタムプロパティを使うことでダークモード切替時にリアルタイム反映される */
+  --c-bg-chrome:  #ffffff;
 }
 
 .dark {
@@ -53,22 +56,21 @@ body {
   --c-text-1:     #e2e4f0;
   --c-text-2:     #8b90a8;
   --c-text-3:     #575c73;
+  --c-bg-chrome:  #1a1d27;
+}
+
+/* html にも背景を設定（iOS PWA の safe-area 外領域を含む） */
+html {
+  background: var(--c-bg-chrome);
 }
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
-  /* ヘッダー・ボトムナビと同じ色に揃える。
-     iOS PWA の safe-area-inset-top / bottom 領域がヘッダー色と連続して見える。 */
-  background: #ffffff;
+  /* CSS 変数経由にすることでダークモード切替時もリアルタイムに追従する */
+  background: var(--c-bg-chrome);
+  color: var(--c-text-1);
   max-width: 430px;
   margin: 0 auto;
-}
-
-/* ダークモード */
-.dark body {
-  /* ヘッダー (dark:bg-[#1a1d27]) と揃える */
-  background: #1a1d27;
-  color: #e2e4f0;
 }
 
 /* Drawer のセーフエリア対応 */
