@@ -3,15 +3,6 @@ import { useState } from 'react'
 import DrawerSection from '../ui/DrawerSection'
 import DrawerItem    from '../ui/DrawerItem'
 
-function SyncIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round"
-        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-    </svg>
-  )
-}
-
 function TrashIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4" stroke="currentColor" strokeWidth={2}>
@@ -22,22 +13,10 @@ function TrashIcon() {
   )
 }
 
-/** synced_at の ISO 文字列を「X分前」などに変換 */
-function timeAgo(isoString) {
-  if (!isoString) return '不明'
-  const diff = Date.now() - new Date(isoString).getTime()
-  const s    = Math.floor(diff / 1000)
-  if (s < 60)        return `${s}秒前`
-  if (s < 3600)      return `${Math.floor(s / 60)}分前`
-  if (s < 86400)     return `${Math.floor(s / 3600)}時間前`
-  return `${Math.floor(s / 86400)}日前`
-}
-
-export default function DataSection({ profile }) {
+export default function DataSection() {
   const [confirmOpen, setConfirmOpen] = useState(false)
 
   const handleReset = () => {
-    // localStorage の履修関連キーを削除
     const KEYS = [
       'rishu_enrollment_entries',
       'rishu_include_projected',
@@ -51,15 +30,6 @@ export default function DataSection({ profile }) {
   return (
     <>
       <DrawerSection label="データ">
-        {/* 最終同期 */}
-        <DrawerItem
-          icon={<SyncIcon />}
-          label="最終同期"
-          value={profile?.synced_at ? timeAgo(profile.synced_at) : '未同期'}
-          sublabel="Google Sheets との最終更新時刻"
-        />
-
-        {/* データ初期化 */}
         <DrawerItem
           icon={<TrashIcon />}
           label="ローカルデータを初期化"

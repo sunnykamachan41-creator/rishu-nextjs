@@ -74,11 +74,13 @@ body {
 }
 
 @keyframes slide-up {
-  from { transform: translateY(16px); opacity: 0; }
-  to   { transform: translateY(0);    opacity: 1; }
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
 }
 
-.animate-slide-up { animation: slide-up 0.2s ease-out; }
+/* cubic-bezier(0.32, 0.72, 0, 1) = iOS システムシートと同じ曲線
+   始動が速く、末端が滑らかに止まる「ひゅっ」感 */
+.animate-slide-up { animation: slide-up 0.36s cubic-bezier(0.32, 0.72, 0, 1); }
 
 /* Hide scrollbar in horizontal filter strips */
 .overflow-x-auto::-webkit-scrollbar { display: none; }

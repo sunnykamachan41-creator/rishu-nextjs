@@ -33,6 +33,7 @@ import { calculateDisplayGrade } from '@/lib/leavePeriods'
 import { useLeavePeriods } from '@/lib/useLeavePeriods'
 import PreEnrollMigrateModal  from '@/components/PreEnrollMigrateModal'
 import NotificationBell       from '@/components/NotificationBell'
+import PwaInstallPrompt       from '@/components/PwaInstallPrompt'
 
 // ── SWR fetcher ───────────────────────────────────────────────────────────────
 
@@ -104,6 +105,10 @@ const [tab, setTab] = useState('timetable')
   // 初期値は必ず '' とし、サーバー（users シート）の値を正として useEffect で反映する。
   // localStorage は使用しない（student_id ごとに異なる値が混在するため）。
   const [department, setDepartment] = useState('')
+
+  // ── PWA インストール案内（オンボーディング完了後に一度だけ表示） ────────────────
+  const [showPwaPrompt, setShowPwaPrompt] = useState(false)
+  const pwaPromptCheckedRef = useRef(false)
 
   // 学年管理（handleDepartmentSelect が enrollmentYear を参照するため、先に宣言する）
   const [enrollmentYear, setEnrollmentYear] = useState(loadEnrollmentYear)
@@ -416,6 +421,20 @@ const [tab, setTab] = useState('timetable')
   useEffect(() => {
     setDepartment('')
   }, [studentId])
+
+  // PWA インストール案内: department が確定したタイミングで一度だけチェック
+  useEffect(() => {
+    if (!department || pwaPromptCheckedRef.current) return
+    pwaPromptCheckedRef.current = true
+    // すでにスタンドアローン（インストール済み）なら表示しない
+    const isStandalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      window.navigator.standalone === true
+    if (isStandalone) return
+    // 表示済みなら再表示しない
+    try { if (localStorage.getItem('rishu_pwa_prompted')) return } catch {}
+    setShowPwaPrompt(true)
+  }, [department])
 
   // users シートの userDepartment を正として department state に同期する。
   // data が undefined（ロード中）の間は何もしない。
@@ -1341,6 +1360,16 @@ const [tab, setTab] = useState('timetable')
           })}
         </div>
       </nav>
+
+      {/* ── PWA インストール案内（初回のみ） ─────────────────────────────────────── */}
+      {showPwaPrompt && (
+        <PwaInstallPrompt
+          onClose={() => {
+            try { localStorage.setItem('rishu_pwa_prompted', '1') } catch {}
+            setShowPwaPrompt(false)
+          }}
+        />
+      )}
 
       {/* ── 仮登録移行モーダル ──────────────────────────────────────────────────── */}
       {migrateModalData && (

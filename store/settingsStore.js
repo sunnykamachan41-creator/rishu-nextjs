@@ -11,15 +11,11 @@ export const useSettingsStore = create(
   persist(
     (set) => ({
       // 表示設定
-      darkMode:        false,
-      timetableView:   'weekly',  // 'weekly' | 'list'
-      showCreditBadge: true,
+      darkMode: false,
 
       // Actions
-      toggleDarkMode:     () => set((s) => ({ darkMode: !s.darkMode })),
-      setDarkMode:        (v) => set({ darkMode: v }),
-      setTimetableView:   (v) => set({ timetableView: v }),
-      setShowCreditBadge: (v) => set({ showCreditBadge: v }),
+      toggleDarkMode: () => set((s) => ({ darkMode: !s.darkMode })),
+      setDarkMode:    (v) => set({ darkMode: v }),
     }),
     { name: 'rishu-ui-settings' }
   )

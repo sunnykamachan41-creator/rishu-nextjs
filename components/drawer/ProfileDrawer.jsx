@@ -140,7 +140,7 @@ export default function ProfileDrawer({
               exemptionCount={exemptionCount}
             />
             <DisplaySection />
-            <DataSection profile={profile} />
+            <DataSection />
             <SupportSection onClose={onClose} />
             <AuthSection onClose={onClose} />
 
