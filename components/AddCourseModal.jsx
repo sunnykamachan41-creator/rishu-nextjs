@@ -258,7 +258,6 @@ export default function AddCourseModal({
             <input
               type="text" value={query} onChange={e => setQuery(e.target.value)}
               placeholder="授業名・担当者で検索"
-              autoFocus
               className="w-full bg-gray-50 dark:bg-[#252839] rounded-xl pl-9 pr-8 py-2 text-sm
                          border border-gray-100 dark:border-white/[0.07]
                          text-gray-800 dark:text-slate-200 placeholder:text-gray-400 dark:placeholder:text-slate-500
