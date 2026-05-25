@@ -144,19 +144,37 @@ export default function ProfileDrawer({
             <SupportSection onClose={onClose} />
             <AuthSection onClose={onClose} />
 
-            <p className="text-center text-[11px] text-gray-300 dark:text-slate-600 pt-1">
-              <span
-                style={{
-                  fontFamily:    'var(--font-league-spartan)',
-                  fontWeight:    700,
-                  letterSpacing: '0.06em',
-                  fontSize:      12,
-                }}
-              >
-                YORA
-              </span>
-              {' · '}学芸大学
-            </p>
+            {/* ── フッターロゴ ──────────────────────────────────────────────
+                アイコン + YORA テキストのロックアップ。
+                ライト: アイコンそのまま / YORA = #202f51（ブランドカラー）
+                ダーク: アイコンそのまま / YORA = white（背景に馴染む）        */}
+            <div className="flex flex-col items-center gap-2 pt-2">
+              <div className="flex items-center gap-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/icons/icon-192.png"
+                  alt=""
+                  width={20}
+                  height={20}
+                  style={{ borderRadius: 5, display: 'block', flexShrink: 0 }}
+                />
+                <span
+                  className="text-[#202f51] dark:text-white"
+                  style={{
+                    fontFamily:    'var(--font-league-spartan)',
+                    fontSize:      14,
+                    fontWeight:    700,
+                    letterSpacing: '0.07em',
+                    lineHeight:    1,
+                  }}
+                >
+                  YORA
+                </span>
+              </div>
+              <p className="text-[10px] text-gray-300 dark:text-slate-600">
+                学芸大学
+              </p>
+            </div>
           </div>
         </div>
       </aside>
