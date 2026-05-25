@@ -57,14 +57,17 @@ body {
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
-  background: var(--c-bg-app);
+  /* ヘッダー・ボトムナビと同じ色に揃える。
+     iOS PWA の safe-area-inset-top / bottom 領域がヘッダー色と連続して見える。 */
+  background: #ffffff;
   max-width: 430px;
   margin: 0 auto;
 }
 
 /* ダークモード */
 .dark body {
-  background: var(--c-bg-app);
+  /* ヘッダー (dark:bg-[#1a1d27]) と揃える */
+  background: #1a1d27;
   color: #e2e4f0;
 }
 
@@ -77,10 +80,15 @@ body {
   from { transform: translateY(100%); }
   to   { transform: translateY(0); }
 }
+@keyframes slide-down {
+  from { transform: translateY(0); }
+  to   { transform: translateY(100%); }
+}
 
-/* cubic-bezier(0.32, 0.72, 0, 1) = iOS システムシートと同じ曲線
-   始動が速く、末端が滑らかに止まる「ひゅっ」感 */
-.animate-slide-up { animation: slide-up 0.36s cubic-bezier(0.32, 0.72, 0, 1); }
+/* 開く: iOS システムシート曲線（速く出て、滑らかに止まる） */
+.animate-slide-up   { animation: slide-up   0.36s cubic-bezier(0.32, 0.72, 0, 1); }
+/* 閉じる: ease-in 系（速く加速して画面外へ消える）。forwards で位置を保持 */
+.animate-slide-down { animation: slide-down 0.26s cubic-bezier(0.4, 0, 0.8, 0) forwards; }
 
 /* Hide scrollbar in horizontal filter strips */
 .overflow-x-auto::-webkit-scrollbar { display: none; }

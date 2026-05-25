@@ -3,6 +3,7 @@ import { useState, useRef, useCallback } from 'react'
 import { STATUS_CONFIG, DIRECT_STATUSES } from '@/lib/enrollmentStatus'
 import AttendanceSection from './AttendanceSection'
 import { useSwipeDown } from '@/lib/useSwipeDown'
+import { useSheetClose } from '@/lib/useSheetClose'
 
 const TERM_COLORS = {
   '春学期': 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300',
@@ -82,18 +83,21 @@ export default function CourseModal({
   }, [canMemo, onMemoSave, course.class_id, memoText, memoState])
 
   const totalPages = (canMemo || canAttendance) ? 2 : 1
-  const { sheetRef, handleProps } = useSwipeDown(onClose)
+  const { closing, closeSheet } = useSheetClose(onClose)
+  const { sheetRef, handleProps } = useSwipeDown(closeSheet)
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center"
+      className={`fixed inset-0 z-50 flex items-end justify-center
+                  transition-opacity duration-[260ms] ${closing ? 'opacity-0' : 'opacity-100'}`}
       style={{ background: 'rgba(0,0,0,0.4)', maxWidth: 430, margin: '0 auto' }}
-      onClick={onClose}
+      onClick={closeSheet}
     >
       <div
         ref={sheetRef}
         {...handleProps}
-        className="bg-white dark:bg-[#1f2235] rounded-t-3xl w-full animate-slide-up overflow-hidden flex flex-col"
+        className={`bg-white dark:bg-[#1f2235] rounded-t-3xl w-full overflow-hidden flex flex-col
+                    ${closing ? 'animate-slide-down' : 'animate-slide-up'}`}
         style={{ maxHeight: '90dvh' }}
         onClick={e => e.stopPropagation()}
       >

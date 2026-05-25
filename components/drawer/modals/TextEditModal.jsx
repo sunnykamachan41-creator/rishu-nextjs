@@ -1,10 +1,13 @@
 'use client'
 import { useState } from 'react'
+import { useSheetClose } from '@/lib/useSheetClose'
 
 export default function TextEditModal({ title, placeholder, current, onSave, onClose }) {
   const [value,   setValue]   = useState(current ?? '')
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState('')
+
+  const { closing, closeSheet } = useSheetClose(onClose)
 
   const handleSave = async () => {
     setLoading(true)
@@ -20,12 +23,13 @@ export default function TextEditModal({ title, placeholder, current, onSave, onC
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-end justify-center bg-black/50 backdrop-blur-sm"
-      onClick={onClose}
+      className={`fixed inset-0 z-[70] flex items-end justify-center bg-black/50 backdrop-blur-sm
+                  transition-opacity duration-[260ms] ${closing ? 'opacity-0' : 'opacity-100'}`}
+      onClick={closeSheet}
     >
       <div
-        className="bg-white dark:bg-slate-800 rounded-t-3xl w-full max-w-md pb-safe shadow-2xl
-                   animate-slide-up"
+        className={`bg-white dark:bg-slate-800 rounded-t-3xl w-full max-w-md pb-safe shadow-2xl
+                    ${closing ? 'animate-slide-down' : 'animate-slide-up'}`}
         onClick={e => e.stopPropagation()}
       >
         {/* ハンドル */}
@@ -55,7 +59,7 @@ export default function TextEditModal({ title, placeholder, current, onSave, onC
 
           <div className="flex gap-3 mt-5">
             <button
-              onClick={onClose}
+              onClick={closeSheet}
               disabled={loading}
               className="flex-1 py-3.5 rounded-2xl border border-gray-200 dark:border-slate-600
                          text-[14px] font-semibold text-gray-600 dark:text-slate-300

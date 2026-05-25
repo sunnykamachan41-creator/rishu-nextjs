@@ -18,6 +18,21 @@ export default function ProfileHeader({ session, departmentLabel, enrollmentYear
       <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white/10 pointer-events-none" />
       <div className="absolute -bottom-6 -left-6 w-24 h-24 rounded-full bg-white/5  pointer-events-none" />
 
+      {/* YORA ブランドマーク — 右上にさりげなく */}
+      <p
+        className="absolute top-4 right-5 text-white/30 pointer-events-none select-none"
+        style={{
+          fontFamily:    'var(--font-league-spartan)',
+          fontSize:      15,
+          fontWeight:    700,
+          letterSpacing: '0.08em',
+          lineHeight:    1,
+        }}
+        aria-hidden
+      >
+        YORA
+      </p>
+
       <div className="relative flex items-end gap-4">
         {/* アバター */}
         <div className="relative flex-shrink-0">

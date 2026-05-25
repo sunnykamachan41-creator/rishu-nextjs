@@ -145,7 +145,17 @@ export default function ProfileDrawer({
             <AuthSection onClose={onClose} />
 
             <p className="text-center text-[11px] text-gray-300 dark:text-slate-600 pt-1">
-              YORA · よーら · 学芸大学
+              <span
+                style={{
+                  fontFamily:    'var(--font-league-spartan)',
+                  fontWeight:    700,
+                  letterSpacing: '0.06em',
+                  fontSize:      12,
+                }}
+              >
+                YORA
+              </span>
+              {' · '}学芸大学
             </p>
           </div>
         </div>

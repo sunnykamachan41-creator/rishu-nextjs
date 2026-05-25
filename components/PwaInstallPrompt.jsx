@@ -1,4 +1,5 @@
 'use client'
+import { useSheetClose } from '@/lib/useSheetClose'
 
 /**
  * PwaInstallPrompt
@@ -15,16 +16,19 @@
  */
 export default function PwaInstallPrompt({ onClose }) {
   const platform = detectPlatform()
+  const { closing, closeSheet } = useSheetClose(onClose)
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex flex-col justify-end"
+      className={`fixed inset-0 z-[80] flex flex-col justify-end
+                  transition-opacity duration-[260ms] ${closing ? 'opacity-0' : 'opacity-100'}`}
       style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}
-      onClick={onClose}
+      onClick={closeSheet}
     >
       {/* Bottom sheet */}
       <div
-        className="animate-slide-up bg-white dark:bg-[#1a1d27] rounded-t-3xl w-full px-6 pt-6 pb-10"
+        className={`bg-white dark:bg-[#1a1d27] rounded-t-3xl w-full px-6 pt-6
+                    ${closing ? 'animate-slide-down' : 'animate-slide-up'}`}
         style={{ paddingBottom: 'max(2.5rem, env(safe-area-inset-bottom))' }}
         onClick={e => e.stopPropagation()}
       >
@@ -54,7 +58,7 @@ export default function PwaInstallPrompt({ onClose }) {
 
         {/* 閉じるボタン */}
         <button
-          onClick={onClose}
+          onClick={closeSheet}
           className="mt-5 w-full py-3.5 rounded-2xl
                      bg-indigo-500 active:bg-indigo-600
                      text-white text-[15px] font-semibold

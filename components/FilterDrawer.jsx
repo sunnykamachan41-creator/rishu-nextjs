@@ -1,6 +1,7 @@
 'use client'
 import { useMemo, useState } from 'react'
 import { useSwipeDown } from '@/lib/useSwipeDown'
+import { useSheetClose } from '@/lib/useSheetClose'
 
 // ── 固定オプション ────────────────────────────────────────────────────────────
 
@@ -67,7 +68,8 @@ export const DEFAULT_FILTERS = {
 // ── FilterDrawer ──────────────────────────────────────────────────────────────
 
 export default function FilterDrawer({ open, onClose, filters, onChange, courses }) {
-  const { sheetRef, handleProps } = useSwipeDown(onClose)
+  const { closing, closeSheet } = useSheetClose(onClose)
+  const { sheetRef, handleProps } = useSwipeDown(closeSheet)
 
   // データから動的オプションを生成
   const yearOpts = useMemo(() =>
@@ -113,15 +115,21 @@ export default function FilterDrawer({ open, onClose, filters, onChange, courses
     onChange({ ...filters, categories: next, subCategories })
   }
 
-  if (!open) return null
+  if (!open && !closing) return null
 
   return (
     <div className="fixed inset-0 z-50" style={{ maxWidth: 430, margin: '0 auto' }}>
       {/* オーバーレイ */}
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div
+        className={`absolute inset-0 bg-black/50 transition-opacity duration-[260ms]
+                    ${closing ? 'opacity-0' : 'opacity-100'}`}
+        onClick={closeSheet}
+      />
 
       {/* ボトムシート */}
-      <div ref={sheetRef} {...handleProps} className="absolute bottom-0 left-0 right-0 bg-white dark:bg-[#1f2235] rounded-t-3xl flex flex-col"
+      <div ref={sheetRef} {...handleProps}
+        className={`absolute bottom-0 left-0 right-0 bg-white dark:bg-[#1f2235] rounded-t-3xl flex flex-col
+                    ${closing ? 'animate-slide-down' : 'animate-slide-up'}`}
         style={{ maxHeight: '88dvh' }}>
         {/* ハンドル + ヘッダー */}
         <div className="flex-shrink-0 px-4 pt-2 pb-3 border-b border-gray-100 dark:border-white/[0.07]">
@@ -221,7 +229,7 @@ export default function FilterDrawer({ open, onClose, filters, onChange, courses
 
         {/* 閉じるボタン */}
         <div className="flex-shrink-0 px-4 py-4 border-t border-gray-100 dark:border-white/[0.07]">
-          <button onClick={onClose}
+          <button onClick={closeSheet}
             className="w-full bg-blue-500 text-white py-3 rounded-2xl font-semibold text-sm">
             閉じる
           </button>

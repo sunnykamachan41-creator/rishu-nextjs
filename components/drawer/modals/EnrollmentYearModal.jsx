@@ -1,21 +1,23 @@
 'use client'
 import { useState } from 'react'
+import { useSheetClose } from '@/lib/useSheetClose'
 
 const CURRENT_YEAR = new Date().getFullYear()
-// 過去10年分の入学年度を生成（新しい順）
 const YEARS = Array.from({ length: 10 }, (_, i) => CURRENT_YEAR - i)
 
 export default function EnrollmentYearModal({ current, onSave, onClose }) {
   const [selected, setSelected] = useState(current ?? CURRENT_YEAR)
+  const { closing, closeSheet } = useSheetClose(onClose)
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-end justify-center bg-black/50 backdrop-blur-sm"
-      onClick={onClose}
+      className={`fixed inset-0 z-[70] flex items-end justify-center bg-black/50 backdrop-blur-sm
+                  transition-opacity duration-[260ms] ${closing ? 'opacity-0' : 'opacity-100'}`}
+      onClick={closeSheet}
     >
       <div
-        className="bg-white dark:bg-slate-800 rounded-t-3xl w-full max-w-md pb-safe shadow-2xl
-                   animate-slide-up"
+        className={`bg-white dark:bg-slate-800 rounded-t-3xl w-full max-w-md pb-safe shadow-2xl
+                    ${closing ? 'animate-slide-down' : 'animate-slide-up'}`}
         onClick={e => e.stopPropagation()}
       >
         {/* ハンドル */}
@@ -31,7 +33,6 @@ export default function EnrollmentYearModal({ current, onSave, onClose }) {
             学年計算の基準となる年度です
           </p>
 
-          {/* 年度リスト */}
           <div className="space-y-2 max-h-64 overflow-y-auto overscroll-contain -mx-1 px-1">
             {YEARS.map(y => (
               <button
@@ -50,10 +51,9 @@ export default function EnrollmentYearModal({ current, onSave, onClose }) {
             ))}
           </div>
 
-          {/* 決定ボタン */}
           <div className="flex gap-3 mt-5">
             <button
-              onClick={onClose}
+              onClick={closeSheet}
               className="flex-1 py-3.5 rounded-2xl border border-gray-200 dark:border-slate-600
                          text-[14px] font-semibold text-gray-600 dark:text-slate-300
                          hover:bg-gray-50 transition-colors"

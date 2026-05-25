@@ -1075,7 +1075,7 @@ const [tab, setTab] = useState('timetable')
   // ── Main layout ────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-col h-full"
+    <div className="flex flex-col h-full bg-[#f1f5f9] dark:bg-[#111318]"
       onTouchStart={handleEdgeTouchStart}
       onTouchEnd={handleEdgeTouchEnd}
     >
