@@ -231,9 +231,8 @@ export async function GET(request) {
     }
 
     // ── Filter + enrich graduation_ui rows ──────────────────────────────────
-    // Preserve group order (first-occurrence in sheet = intended display order)
-    const groupOrder    = []
-    const groupOrderSet = new Set()
+    // ui_group の表示順: display_order_0 列が存在すればその値で、なければ初出順
+    const groupOrder0   = new Map()  // ui_group → display_order_0（最小値）
     const items         = []
 
     for (const row of uiRows) {
@@ -247,15 +246,18 @@ export async function GET(request) {
       const isForDept    = rowTarget === departmentId
       if (!isForAll && !isForDept) continue
 
-      const category     = normCat(row.category || '')   // 大文字統一
-      const uiGroup      = (row.ui_group     || '').trim()
-      const displayName  = (row.display_name || category || '').trim()
-      const displayOrder = Number(row.display_order) || 0
+      const category      = normCat(row.category || '')   // 大文字統一
+      const uiGroup       = (row.ui_group     || '').trim()
+      const displayName   = (row.display_name || category || '').trim()
+      const displayOrder  = Number(row.display_order)  || 0
+      const displayOrder0 = Number(row.display_order_0)
 
-      // Record group order
-      if (uiGroup && !groupOrderSet.has(uiGroup)) {
-        groupOrder.push(uiGroup)
-        groupOrderSet.add(uiGroup)
+      // ui_group ごとの display_order_0 を記録（同グループ内の最小値を採用）
+      if (uiGroup) {
+        const prev = groupOrder0.get(uiGroup)
+        if (prev === undefined || (!isNaN(displayOrder0) && displayOrder0 < prev)) {
+          groupOrder0.set(uiGroup, isNaN(displayOrder0) ? Infinity : displayOrder0)
+        }
       }
 
       // Required = category + rule_type + target すべてが現在ユーザーに一致する
@@ -301,14 +303,13 @@ export async function GET(request) {
       })
     }
 
-    // Sort: GLOBAL 全員表示を先頭に、CLASS/SPECIAL を後ろに。
-    // 同一 rule_type 内はシートの group 出現順 → display_order の順を維持。
-    const RULE_TYPE_PRIORITY = { GLOBAL: 0, CLASS: 1, SPECIAL: 1 }
+    // Sort:
+    //   1. ui_group を display_order_0 の昇順（未設定は末尾）
+    //   2. 同グループ内は display_order の昇順
     items.sort((a, b) => {
-      const rp = (RULE_TYPE_PRIORITY[a.ui_rule_type] ?? 1) - (RULE_TYPE_PRIORITY[b.ui_rule_type] ?? 1)
-      if (rp !== 0) return rp
-      const gi = groupOrder.indexOf(a.ui_group) - groupOrder.indexOf(b.ui_group)
-      if (gi !== 0) return gi
+      const ga = groupOrder0.get(a.ui_group) ?? Infinity
+      const gb = groupOrder0.get(b.ui_group) ?? Infinity
+      if (ga !== gb) return ga - gb
       return a.display_order - b.display_order
     })
 
