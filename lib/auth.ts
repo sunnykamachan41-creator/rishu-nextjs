@@ -46,9 +46,27 @@ export const authOptions: NextAuthOptions = {
   ],
 
   callbacks: {
-    // ① ログイン可否の判定（email が存在すれば許可）
+    // ① ログイン可否の判定
+    //    ALLOWED_EMAIL_DOMAINS が設定されている場合は、そのドメインのみ許可する。
+    //    例: ALLOWED_EMAIL_DOMAINS=u-gakugei.ac.jp,gakugei-u.ac.jp
+    //    未設定の場合はすべての Google アカウントを許可する（開発用途）。
     async signIn({ user }) {
-      return !!user?.email
+      if (!user?.email) return false
+
+      const allowedDomains = process.env.ALLOWED_EMAIL_DOMAINS
+      if (!allowedDomains) return true   // 未設定 = 制限なし
+
+      const email = user.email.toLowerCase()
+      const domains = allowedDomains
+        .split(',')
+        .map(d => d.trim().toLowerCase())
+        .filter(Boolean)
+
+      const allowed = domains.some(domain => email.endsWith(`@${domain}`))
+      if (!allowed) {
+        console.warn('[signIn] rejected email outside allowed domains:', email)
+      }
+      return allowed
     },
 
     // ② JWT 生成/更新時に student_id を埋め込む

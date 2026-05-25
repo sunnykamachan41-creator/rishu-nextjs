@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import {
   updateProgressAuto,
   updateStudentsSummary,
@@ -10,8 +12,12 @@ import { normalizeId } from '@/lib/transform'
 /**
  * POST /api/recalculate
  * ──────────────────────
- * [DEV-ONLY] Full recalculation pipeline for all registered students (or a
- * specific student when student_id is supplied in the request body).
+ * Full recalculation pipeline for registered students.
+ *
+ * 認可ルール:
+ *   - ログイン必須（未認証は 401）
+ *   - student_id 指定あり → 自分自身のみ再計算可（他人指定は 403）
+ *   - student_id 省略（全学生モード）→ X-Admin-Secret ヘッダーが必要（管理者専用）
  *
  * Pipeline:
  *   1. updateProgressAuto(sid)  — per student: rebuild enrollment × course JOIN
@@ -20,19 +26,40 @@ import { normalizeId } from '@/lib/transform'
  *
  * Body (all optional):
  *   { student_id?: string }
- *
- *   student_id supplied  → recalculate only that student's progress_auto row
- *   student_id omitted   → iterate over every row in the users sheet
- *
- * Note: updateProgressAuto is student-scoped and non-destructive — calling it
- * for student A preserves student B's rows in progress_auto.
- * updateStudentsSummary always runs globally (reads all rows in progress_auto).
  */
 export async function POST(request) {
   try {
+    // ── 認証チェック ────────────────────────────────────────────────────────
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.student_id) {
+      return NextResponse.json({ error: 'ログインが必要です' }, { status: 401 })
+    }
+    const sessionStudentId = session.user.student_id
+
     const body      = await request.json().catch(() => ({}))
     const rawSid    = body?.student_id ?? ''
     const studentId = rawSid ? normalizeId(rawSid) : null
+
+    // ── 認可チェック ────────────────────────────────────────────────────────
+    if (studentId) {
+      // student_id 指定あり → 自分自身のみ許可
+      if (studentId !== sessionStudentId) {
+        console.warn('[POST /api/recalculate] forbidden: attempted to recalculate another student', {
+          requester: sessionStudentId, requested: studentId,
+        })
+        return NextResponse.json({ error: '他の学生のデータを再計算する権限がありません' }, { status: 403 })
+      }
+    } else {
+      // student_id 省略 = 全学生モード → 管理者シークレット必須
+      const adminSecret = process.env.ADMIN_SECRET
+      const providedSecret = request.headers.get('x-admin-secret')
+      if (!adminSecret || providedSecret !== adminSecret) {
+        console.warn('[POST /api/recalculate] forbidden: all-students mode requires admin secret', {
+          requester: sessionStudentId,
+        })
+        return NextResponse.json({ error: '全学生の再計算には管理者権限が必要です' }, { status: 403 })
+      }
+    }
 
     // ── Step 1: Determine which students to recalculate ───────────────────────
     let targetIds
