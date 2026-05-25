@@ -837,10 +837,14 @@ function RequirementItem({ item }) {
         <div className="border-t border-gray-100 dark:border-white/[0.07]">
           <div className="bg-slate-50 dark:bg-[#1f2235] px-4 pt-2 pb-1.5 space-y-0.5">
             {courses.map((course, idx) => {
-              const cfg      = STATUS_CONFIG_UI[course.status] ?? { label: course.status, badge: 'bg-gray-100 text-gray-500' }
-              const dotColor = STATUS_DOT[course.status] ?? 'bg-gray-300'
+              // class_id が空 = 単位認定コース（Route B）
+              const isRecognized = !course.class_id
+              const cfg      = isRecognized
+                ? { label: '単位認定', badge: 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300' }
+                : (STATUS_CONFIG_UI[course.status] ?? { label: course.status, badge: 'bg-gray-100 text-gray-500' })
+              const dotColor = isRecognized ? 'bg-amber-400' : (STATUS_DOT[course.status] ?? 'bg-gray-300')
               return (
-                <div key={course.class_id || idx} className="flex items-center gap-2.5 py-1.5">
+                <div key={course.class_id || `rec-${idx}`} className="flex items-center gap-2.5 py-1.5">
                   <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${dotColor}`} />
                   <span className="flex-1 text-xs text-gray-600 dark:text-slate-300 truncate leading-snug">
                     {course.course_name || course.class_id}
