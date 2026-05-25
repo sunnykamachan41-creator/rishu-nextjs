@@ -1290,6 +1290,9 @@ const [tab, setTab] = useState('timetable')
               onRecalculate={handleRecalculate}
               recalcBusy={recalcBusy}
               recalcError={recalcError}
+              selectedGrade={selectedGrade}
+              timetableTermFilter={timetableTermFilter}
+              academicYear={academicYear}
             />
           </div>
         )}

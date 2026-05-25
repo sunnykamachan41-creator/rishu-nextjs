@@ -1,6 +1,7 @@
 'use client'
 import { useMemo, useState } from 'react'
 import useSWR from 'swr'
+import MemoSection from '@/components/MemoSection'
 
 const fetcher = url => fetch(url).then(r => r.json())
 
@@ -113,6 +114,9 @@ export default function Dashboard({
   onRecalculate = null,
   recalcBusy    = false,
   recalcError   = null,
+  selectedGrade      = 1,
+  timetableTermFilter = '春学期',
+  academicYear       = 0,
 }) {
   const [chartMode, setChartMode] = useState('all')
 
@@ -585,6 +589,18 @@ export default function Dashboard({
           )}
         </div>
       </div>
+
+      {/* ④ 授業メモ ──────────────────────────────────────────────────────────── */}
+      <MemoSection
+        enrollment={enrollment}
+        courses={courses}
+        selectedGrade={selectedGrade}
+        timetableTermFilter={timetableTermFilter}
+        academicYear={academicYear}
+      />
+
+      {/* スクロール末尾の余白 */}
+      <div className="h-4" />
 
       </div>{/* flex-1 overflow-auto */}
     </div>

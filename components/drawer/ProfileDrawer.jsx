@@ -172,7 +172,7 @@ export default function ProfileDrawer({
                 </span>
               </div>
               <p className="text-[10px] text-gray-300 dark:text-slate-600">
-                学芸大学
+                東京学芸大学・非公式
               </p>
             </div>
           </div>
