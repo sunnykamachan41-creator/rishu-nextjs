@@ -241,10 +241,12 @@ export default function Dashboard({
   const passedItems = useMemo(() => reqItems.filter(i => i.pass === true), [reqItems])
   const passedCount = passedItems.length
   const reqCount    = reqItems.length
-  const targetCredits = useMemo(
-    () => reqItems.reduce((s, i) => s + (Number(i.required_credits) || 0), 0),
-    [reqItems]
-  )
+  // graduation_total_req が設定されていればその値を優先し、
+  // 未設定の場合は従来通りカテゴリ要件の合計にフォールバックする。
+  const targetCredits = useMemo(() => {
+    if (gradData?.total_required != null) return gradData.total_required
+    return reqItems.reduce((s, i) => s + (Number(i.required_credits) || 0), 0)
+  }, [gradData?.total_required, reqItems])
 
   // ── クレジット集計 ────────────────────────────────────────────────────────
   const totalCredits = creditSummary?.totalCredits ?? 0

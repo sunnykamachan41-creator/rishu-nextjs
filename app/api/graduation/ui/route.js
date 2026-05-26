@@ -7,6 +7,7 @@ import {
   fetchCategoryFormulaAll,
   fetchProgressAutoForStudent,
   fetchAllSheets,
+  fetchGraduationTotalReqAll,
 } from '@/lib/sheets'
 import { evaluateCondition, applyCategoryFormula } from '@/lib/graduation'
 
@@ -60,21 +61,36 @@ export async function GET(request) {
     const includeProjected = searchParams.get('include_projected') === '1'
     const includeTemporary = searchParams.get('include_temporary') === '1'
 
-    const [uiRows, ruleRows, studentRows, categoryFormulaRows, progressRows, sheetsData] = await Promise.all([
+    const [uiRows, ruleRows, studentRows, categoryFormulaRows, progressRows, sheetsData, totalReqRows] = await Promise.all([
       fetchGraduationUIAll(),
       fetchGraduationRuleAll(),
       fetchStudentsSummaryAll(),
       fetchCategoryFormulaAll(),
       fetchProgressAutoForStudent(studentId),
       fetchAllSheets(studentId),
+      fetchGraduationTotalReqAll(),
     ])
 
     const departmentId = normalizeId(sheetsData.userDepartment || '')
 
     if (uiRows.length === 0) {
       console.warn('[GET /api/graduation/ui] graduation_ui sheet is empty or missing')
-      return NextResponse.json({ ok: true, department: departmentId, groups: [], items: [] })
+      return NextResponse.json({ ok: true, department: departmentId, groups: [], items: [],
+        total_required: null, total_current: 0, total_pass: null, total_label: '総取得単位' })
     }
+
+    // ── graduation_total_req: 学科 + カリキュラム年度で該当行を特定 ────────────
+    const curriculumYear = sheetsData.userCurriculumYear  // number | null
+    const totalReqRow = totalReqRows.find(row => {
+      const rowDept = normalizeId(row.department_id || '')
+      if (rowDept !== departmentId) return false
+      const yearFrom = parseInt(String(row.year_from || '0'),    10) || 0
+      const yearTo   = parseInt(String(row.year_to   || '9999'), 10) || 9999
+      if (curriculumYear == null) return true   // 年度未設定 → 最初にマッチした行
+      return curriculumYear >= yearFrom && curriculumYear <= yearTo
+    })
+    const totalRequired = totalReqRow ? (Number(totalReqRow.required_credits) || 0) : null
+    const totalLabel    = totalReqRow ? ((totalReqRow.label || '').trim() || '総取得単位') : '総取得単位'
 
     // ── Build credit map for current student ────────────────────────────────
     // 通常: students_summary の行を直接参照
@@ -323,18 +339,39 @@ export async function GET(request) {
       }
     }
 
+    // ── 総取得単位（creditMap のカテゴリ式重複を避けるため progressRows から直計算） ──
+    // includeProjected / includeTemporary フラグを creditMap と同じ条件で適用する。
+    const TOTAL_STATUSES = includeProjected
+      ? new Set(['COMPLETED', 'IN_PROGRESS', 'PLANNED'])
+      : new Set(['COMPLETED'])
+    let totalCurrent = 0
+    for (const row of progressRows) {
+      const classId = String(row.class_id ?? '').trim()
+      const status  = String(row.status  ?? '').trim().toUpperCase()
+      if (!TOTAL_STATUSES.has(status)) continue
+      if (temporaryClassIds.has(classId) && !includeTemporary) continue
+      totalCurrent += Number(row.credits) || 0
+    }
+    const totalPass = totalRequired != null ? (totalCurrent >= totalRequired) : null
+
     console.log('[GET /api/graduation/ui]', {
-      department:   departmentId,
-      ui_rows:      uiRows.length,
-      items_shown:  items.length,
-      groups:       finalGroups,
+      department:     departmentId,
+      ui_rows:        uiRows.length,
+      items_shown:    items.length,
+      groups:         finalGroups,
+      total_required: totalRequired,
+      total_current:  totalCurrent,
     })
 
     return NextResponse.json({
-      ok:         true,
-      department: departmentId,
-      groups:     finalGroups,
+      ok:             true,
+      department:     departmentId,
+      groups:         finalGroups,
       items,
+      total_required: totalRequired,
+      total_current:  totalCurrent,
+      total_pass:     totalPass,
+      total_label:    totalLabel,
     })
   } catch (err) {
     console.error('[GET /api/graduation/ui]', err)

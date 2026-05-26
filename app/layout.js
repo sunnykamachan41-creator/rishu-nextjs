@@ -70,7 +70,7 @@ const NO_BOUNCE_SCRIPT = `
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="ja" className={`h-dvh ${leagueSpartan.variable}`}>
+    <html lang="ja" className={`h-dvh ${leagueSpartan.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: NO_BOUNCE_SCRIPT }} />
       </head>

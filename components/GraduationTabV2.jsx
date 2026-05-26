@@ -284,6 +284,16 @@ function GraduationContent({ studentId, includeProjected, includeTemporary }) {
         {orderedGroups.map(group => (
           <GroupSection key={group} group={group} items={byGroup[group] || []} />
         ))}
+
+        {/* 総取得単位（graduation_total_req が設定されている場合のみ表示） */}
+        {data.total_required != null && (
+          <TotalCreditsRow
+            label={data.total_label ?? '総取得単位'}
+            current={data.total_current ?? 0}
+            required={data.total_required}
+            pass={data.total_pass}
+          />
+        )}
       </div>
     </div>
   )
@@ -661,6 +671,58 @@ function LicenseEmptyState({ onAdd }) {
           ＋ 副免許・資格を追加
         </button>
       )}
+    </div>
+  )
+}
+
+// ── TotalCreditsRow ───────────────────────────────────────────────────────────
+
+function TotalCreditsRow({ label, current, required, pass }) {
+  const pct = required > 0
+    ? Math.min(Math.round((current / required) * 100), 100)
+    : 0
+  const remaining = required - current
+
+  return (
+    <div className="bg-white dark:bg-[#1a1d27] rounded-2xl shadow-sm dark:shadow-none overflow-hidden">
+      <div className="px-4 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+              pass === true ? 'bg-green-400' : 'bg-red-400 dark:bg-red-400/80'
+            }`} />
+            <span className="text-sm font-bold text-gray-800 dark:text-slate-100">{label}</span>
+          </div>
+          <div className="flex items-baseline gap-0.5 flex-shrink-0">
+            <span className={`text-base font-bold leading-none ${
+              pass === true ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'
+            }`}>
+              {current}
+            </span>
+            <span className="text-xs text-gray-400 dark:text-slate-500 leading-none">
+              &nbsp;/&nbsp;{required} 単位以上
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-2.5 h-1.5 bg-gray-100 dark:bg-white/10 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-500 ${
+              pass === true ? 'bg-green-400' : 'bg-blue-400'
+            }`}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+
+        <div className="flex justify-between mt-1">
+          <span className="text-[10px] text-gray-400 dark:text-slate-500">
+            {pass === true
+              ? '✓ 達成'
+              : remaining > 0 ? `残り ${remaining} 単位` : '達成'}
+          </span>
+          <span className="text-[10px] text-gray-400 dark:text-slate-500">{pct}%</span>
+        </div>
+      </div>
     </div>
   )
 }
