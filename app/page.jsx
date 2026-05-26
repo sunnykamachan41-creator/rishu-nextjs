@@ -422,7 +422,7 @@ const [tab, setTab] = useState('timetable')
     setDepartment('')
   }, [studentId])
 
-  // PWA インストール案内: department が確定したタイミングで一度だけチェック
+  // PWA インストール案内: スタンドアロン（PWA）でない限り毎回表示する
   useEffect(() => {
     if (!department || pwaPromptCheckedRef.current) return
     pwaPromptCheckedRef.current = true
@@ -431,8 +431,6 @@ const [tab, setTab] = useState('timetable')
       window.matchMedia('(display-mode: standalone)').matches ||
       window.navigator.standalone === true
     if (isStandalone) return
-    // 表示済みなら再表示しない
-    try { if (localStorage.getItem('rishu_pwa_prompted')) return } catch {}
     setShowPwaPrompt(true)
   }, [department])
 
@@ -1367,10 +1365,7 @@ const [tab, setTab] = useState('timetable')
       {/* ── PWA インストール案内（初回のみ） ─────────────────────────────────────── */}
       {showPwaPrompt && (
         <PwaInstallPrompt
-          onClose={() => {
-            try { localStorage.setItem('rishu_pwa_prompted', '1') } catch {}
-            setShowPwaPrompt(false)
-          }}
+          onClose={() => setShowPwaPrompt(false)}
         />
       )}
 

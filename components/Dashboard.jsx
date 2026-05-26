@@ -99,6 +99,111 @@ function TemporaryBadge({ active, onToggle }) {
   )
 }
 
+// ── コンボチャート（棒グラフ＋累計折れ線） ─────────────────────────────────────
+
+function ComboChart({ data, includeProjected }) {
+  if (!data || data.length === 0) return null
+
+  const W = 300, H = 155
+  const PAD = { top: 24, right: 16, bottom: 28, left: 20 }
+  const cW = W - PAD.left - PAD.right
+  const cH = H - PAD.top - PAD.bottom
+
+  const maxCum = Math.max(...data.map(d => d.cumulative), 1)
+  const n      = data.length
+  const gap    = cW / n
+  const bw     = Math.min(26, gap * 0.55)
+
+  const xp = i => PAD.left + i * gap + gap / 2
+  const yp = v => PAD.top + cH * (1 - v / maxCum)
+
+  const gradId = includeProjected ? 'cbgP' : 'cbgN'
+  const bc1    = includeProjected ? '#a78bfa' : '#60a5fa'
+  const bc2    = includeProjected ? '#7c3aed' : '#2563eb'
+
+  const sl = lbl => {
+    const m = lbl.match(/(\d+)年(春|秋)/)
+    if (m) return `${m[1]}${m[2]}`
+    return lbl.replace('学期', '')
+  }
+
+  const lp = data
+    .map((d, i) => `${i === 0 ? 'M' : 'L'}${xp(i)},${yp(d.cumulative)}`)
+    .join(' ')
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" aria-hidden="true">
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stopColor={bc1} stopOpacity="0.9" />
+          <stop offset="100%" stopColor={bc2} stopOpacity="1"   />
+        </linearGradient>
+      </defs>
+
+      {/* グリッドライン */}
+      {[0.5, 1].map(f => (
+        <line key={f}
+          x1={PAD.left} y1={PAD.top + cH * (1 - f)}
+          x2={W - PAD.right} y2={PAD.top + cH * (1 - f)}
+          stroke="currentColor" className="text-gray-200 dark:text-white/10"
+          strokeWidth="0.5" strokeDasharray="3 2"
+        />
+      ))}
+
+      {/* 棒グラフ */}
+      {data.map((d, i) => {
+        const bh = Math.max(2, cH * (d.credits / maxCum))
+        const bx = xp(i) - bw / 2
+        const by = PAD.top + cH - bh
+        return (
+          <g key={i}>
+            <rect x={bx} y={by} width={bw} height={bh} fill={`url(#${gradId})`} rx="3" />
+            {bh >= 18 && d.credits > 0 && (
+              <text x={xp(i)} y={by + bh / 2 + 3.5} textAnchor="middle"
+                fontSize="8" fill="white" fontWeight="700">
+                {d.credits}
+              </text>
+            )}
+            {bh < 18 && d.credits > 0 && (
+              <text x={xp(i)} y={by - 3} textAnchor="middle"
+                fontSize="7.5" fill="currentColor" className="text-gray-400 dark:text-slate-500"
+                fontWeight="600">
+                {d.credits}
+              </text>
+            )}
+          </g>
+        )
+      })}
+
+      {/* 累計折れ線 */}
+      <path d={lp} fill="none" stroke="#22c55e" strokeWidth="2"
+        strokeLinejoin="round" strokeLinecap="round" />
+
+      {/* ドット＋累計ラベル */}
+      {data.map((d, i) => {
+        const cy = yp(d.cumulative)
+        return (
+          <g key={`c${i}`}>
+            <circle cx={xp(i)} cy={cy} r="2.5" fill="#22c55e" />
+            <text x={xp(i)} y={cy - 5} textAnchor="middle"
+              fontSize="8" fill="#22c55e" fontWeight="700">
+              {d.cumulative}
+            </text>
+          </g>
+        )
+      })}
+
+      {/* X軸ラベル */}
+      {data.map((d, i) => (
+        <text key={`xl${i}`} x={xp(i)} y={H - 3} textAnchor="middle"
+          fontSize="9" fill="currentColor" className="text-gray-400 dark:text-slate-500">
+          {sl(d.label)}
+        </text>
+      ))}
+    </svg>
+  )
+}
+
 // ── メインコンポーネント ───────────────────────────────────────────────────────
 
 export default function Dashboard({
@@ -118,7 +223,7 @@ export default function Dashboard({
   timetableTermFilter = '春学期',
   academicYear       = 0,
 }) {
-  const [chartMode, setChartMode] = useState('all')
+  const [chartMode, setChartMode] = useState('semester')
 
   // ── 卒業進捗 (graduation/ui) ─────────────────────────────────────────────
   // サーバー側でセッションから user を特定するため student_id は不要
@@ -222,6 +327,15 @@ export default function Dashboard({
   }, [activeBarEnr, courseMap, chartMode])
 
   const barMax = useMemo(() => Math.max(...barData.map(d => d.credits), 1), [barData])
+
+  // ── 累計単位（折れ線用） ──────────────────────────────────────────────────
+  const cumulativeBarData = useMemo(() => {
+    let running = 0
+    return barData.map(d => {
+      running += d.credits
+      return { ...d, cumulative: running }
+    })
+  }, [barData])
 
   // ── render ────────────────────────────────────────────────────────────────
   return (
@@ -376,98 +490,79 @@ export default function Dashboard({
         </div>
       </div>
 
-      {/* ② 細長カード 2枚（取得率 + 今学期）─────────────────────────────────── */}
-      <div className="px-3 mt-3 grid grid-cols-2 gap-2.5">
-
-        {/* 取得率カード */}
-        <div className={`rounded-2xl px-3 py-3 flex flex-col gap-2 ${
-          isFultan ? 'bg-green-50 dark:bg-green-500/10' : 'bg-white dark:bg-[#1a1d27] shadow-sm dark:shadow-none'
+      {/* ② 単位取得率 ────────────────────────────────────────────────────────── */}
+      <div className="px-3 mt-3">
+        <div className={`rounded-3xl px-5 py-5 shadow-sm dark:shadow-none ${
+          isFultan ? 'bg-green-50 dark:bg-green-500/10' : 'bg-white dark:bg-[#1a1d27]'
         }`}>
-          <div className="text-xs text-gray-400 dark:text-slate-500 font-medium leading-none">単位取得率</div>
-
+          <div className="text-xs font-semibold text-gray-400 dark:text-slate-500 mb-4">単位取得率</div>
           {tanhokuDenom === 0 ? (
-            <div className="text-sm text-gray-300 dark:text-slate-600 font-semibold">──</div>
+            <div className="py-4 text-center">
+              <div className="text-2xl mb-2">📚</div>
+              <div className="text-sm text-gray-400 dark:text-slate-500">履修データがありません</div>
+            </div>
           ) : (
-            <div className="flex items-center gap-2">
-              {/* コンパクトドーナツ */}
+            <div className="flex items-center gap-6">
               <div className="relative flex-shrink-0">
-                <TwoColorRing completedPct={tanhokuPct ?? 0} failedPct={failedPct} />
-                <div className="absolute inset-0 flex items-center justify-center">
+                <TwoColorRing completedPct={tanhokuPct ?? 0} failedPct={failedPct} size={148} stroke={13} />
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5">
                   {isFultan ? (
-                    <span className="text-[9px] font-bold text-green-500 leading-none text-center">
-                      フル単
-                    </span>
+                    <>
+                      <div className="text-base font-bold text-green-500 leading-none">フル単</div>
+                      <div className="text-[10px] text-green-400 leading-none">100%</div>
+                    </>
                   ) : (
-                    <span className="text-sm font-bold text-gray-800 leading-none">
-                      {tanhokuPct}
-                    </span>
+                    <>
+                      <div className="text-2xl font-bold text-gray-800 dark:text-slate-100 leading-none">{tanhokuPct}</div>
+                      <div className="text-[11px] text-gray-400 dark:text-slate-500 leading-none">%</div>
+                    </>
                   )}
                 </div>
               </div>
-
-              {/* 数値 */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1 mb-0.5">
-                  <div className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" />
-                  <span className="text-xs text-gray-600 dark:text-slate-300 leading-none">{completedCount}科目</span>
+              <div className="flex-1 space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-green-400 flex-shrink-0" />
+                  <div>
+                    <div className="text-[11px] text-gray-400 dark:text-slate-500">取得済み</div>
+                    <div className="flex items-baseline gap-1 mt-0.5">
+                      <span className="text-lg font-bold text-gray-800 dark:text-slate-100">{completedCount}</span>
+                      <span className="text-xs text-gray-400 dark:text-slate-500">科目</span>
+                    </div>
+                  </div>
                 </div>
-                {failedCount > 0 && (
-                  <div className="flex items-center gap-1">
-                    <div className="w-2 h-2 rounded-full bg-red-300 flex-shrink-0" />
-                    <span className="text-xs text-gray-600 dark:text-slate-300 leading-none">落単 {failedCount}</span>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-red-300 flex-shrink-0" />
+                  <div>
+                    <div className="text-[11px] text-gray-400 dark:text-slate-500">落単</div>
+                    <div className="flex items-baseline gap-1 mt-0.5">
+                      <span className="text-lg font-bold text-gray-800 dark:text-slate-100">{failedCount}</span>
+                      <span className="text-xs text-gray-400 dark:text-slate-500">科目</span>
+                    </div>
                   </div>
-                )}
-                {isFultan && (
-                  <div className="text-[11px] text-green-500 font-bold mt-1 leading-none">
-                    フル単！！
+                </div>
+                <div className="pt-1 border-t border-gray-100 dark:border-white/[0.07]">
+                  <div className="text-[11px] text-gray-400 dark:text-slate-500">履修総数</div>
+                  <div className="flex items-baseline gap-1 mt-0.5">
+                    <span className="text-base font-bold text-gray-600 dark:text-slate-300">{tanhokuDenom}</span>
+                    <span className="text-xs text-gray-400 dark:text-slate-500">科目</span>
                   </div>
-                )}
+                </div>
               </div>
             </div>
-          )}
-        </div>
-
-        {/* 今学期情報カード */}
-        <div className="bg-white dark:bg-[#1a1d27] rounded-2xl px-3 py-3 shadow-sm dark:shadow-none flex flex-col gap-1.5">
-          <div className="text-xs text-gray-400 dark:text-slate-500 font-medium leading-none">今学期</div>
-          {inProgressCount === 0 ? (
-            <div className="text-sm text-gray-300 dark:text-slate-600 font-semibold">──</div>
-          ) : (
-            <>
-              <div className="flex items-baseline gap-1">
-                <span className="text-base font-bold text-gray-800 dark:text-slate-100 leading-none">{inProgressCount}</span>
-                <span className="text-xs text-gray-400 dark:text-slate-500">授業</span>
-                <span className="text-base font-bold text-gray-800 dark:text-slate-100 leading-none ml-1">{inProgressCredits}</span>
-                <span className="text-xs text-gray-400 dark:text-slate-500">単位</span>
-              </div>
-              {attendanceDays.size > 0 && (
-                <div className="text-[11px] text-gray-500 dark:text-slate-400 leading-none">
-                  週{attendanceDays.size}回登校
-                </div>
-              )}
-              <div className="text-[11px] leading-none">
-                {zenkyuCount > 0 ? (
-                  <span className="text-blue-500 dark:text-blue-400 font-semibold">全休 {zenkyuCount}日</span>
-                ) : (
-                  <span className="text-gray-400 dark:text-slate-500">全休なし</span>
-                )}
-              </div>
-            </>
           )}
         </div>
       </div>
 
-      {/* ③ グラフカード（全授業ドーナツ / 学期別・学年別棒グラフ）────────────── */}
+      {/* ③ グラフカード（学期別・学年別コンボチャート）────────────────────────── */}
       <div className="px-3 mt-3">
         <div className="bg-white dark:bg-[#1a1d27] rounded-3xl shadow-sm dark:shadow-none px-5 py-5">
 
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-3">
             <div className="text-xs font-semibold text-gray-400 dark:text-slate-500">
-              {chartMode === 'all' ? '取得率' : chartMode === 'semester' ? '春秋学期別 取得単位' : '学年別 取得単位'}
+              {chartMode === 'semester' ? '学期別 取得単位' : '学年別 取得単位'}
             </div>
             <div className="flex bg-gray-100 dark:bg-[#252839] rounded-lg p-0.5 gap-0.5">
               {[
-                { id: 'all',      label: '全授業' },
                 { id: 'semester', label: '学期別' },
                 { id: 'year',     label: '学年別' },
               ].map(opt => (
@@ -484,108 +579,43 @@ export default function Dashboard({
             </div>
           </div>
 
-          {/* 全授業: ドーナツ */}
-          {chartMode === 'all' && (
-            tanhokuDenom === 0 ? (
-              <div className="py-6 text-center">
-                <div className="text-2xl mb-2">📚</div>
-                <div className="text-sm text-gray-400">履修データがありません</div>
-              </div>
-            ) : (
-              <div className="flex items-center gap-6">
-                <div className="relative flex-shrink-0">
-                  <TwoColorRing completedPct={tanhokuPct ?? 0} failedPct={failedPct} size={148} stroke={13} />
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5">
-                    {isFultan ? (
-                      <>
-                        <div className="text-base font-bold text-green-500 leading-none">フル単</div>
-                        <div className="text-[10px] text-green-400 leading-none">100%</div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="text-2xl font-bold text-gray-800 dark:text-slate-100 leading-none">{tanhokuPct}</div>
-                        <div className="text-[11px] text-gray-400 dark:text-slate-500 leading-none">%</div>
-                      </>
-                    )}
-                  </div>
+          {barData.length === 0 ? (
+            <div className="py-6 text-center">
+              <div className="text-2xl mb-2">📚</div>
+              <div className="text-sm text-gray-400">データがありません</div>
+            </div>
+          ) : (
+            <>
+              {/* 凡例 */}
+              <div className="flex items-center gap-4 mb-2">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-8 h-2.5 rounded-sm flex-shrink-0"
+                    style={{ background: includeProjected
+                      ? 'linear-gradient(90deg,#a78bfa,#7c3aed)'
+                      : 'linear-gradient(90deg,#60a5fa,#2563eb)' }} />
+                  <span className="text-[10px] text-gray-400 dark:text-slate-500">学期取得</span>
                 </div>
-                <div className="flex-1 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-green-400 flex-shrink-0" />
-                    <div>
-                      <div className="text-[11px] text-gray-400 dark:text-slate-500">取得済み</div>
-                      <div className="flex items-baseline gap-1 mt-0.5">
-                        <span className="text-lg font-bold text-gray-800 dark:text-slate-100">{completedCount}</span>
-                        <span className="text-xs text-gray-400 dark:text-slate-500">科目</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-red-300 flex-shrink-0" />
-                    <div>
-                      <div className="text-[11px] text-gray-400 dark:text-slate-500">落単</div>
-                      <div className="flex items-baseline gap-1 mt-0.5">
-                        <span className="text-lg font-bold text-gray-800 dark:text-slate-100">{failedCount}</span>
-                        <span className="text-xs text-gray-400 dark:text-slate-500">科目</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="pt-1 border-t border-gray-100 dark:border-white/[0.07]">
-                    <div className="text-[11px] text-gray-400 dark:text-slate-500">履修総数</div>
-                    <div className="flex items-baseline gap-1 mt-0.5">
-                      <span className="text-base font-bold text-gray-600 dark:text-slate-300">{tanhokuDenom}</span>
-                      <span className="text-xs text-gray-400 dark:text-slate-500">科目</span>
-                    </div>
-                  </div>
+                <div className="flex items-center gap-1.5">
+                  <svg width="18" height="10" viewBox="0 0 18 10" className="flex-shrink-0">
+                    <line x1="1" y1="5" x2="17" y2="5" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" />
+                    <circle cx="9" cy="5" r="2.5" fill="#22c55e" />
+                  </svg>
+                  <span className="text-[10px] text-gray-400 dark:text-slate-500">累計</span>
                 </div>
               </div>
-            )
-          )}
 
-          {/* 学期別 / 学年別: 棒グラフ */}
-          {chartMode !== 'all' && (
-            barData.length === 0 ? (
-              <div className="py-6 text-center">
-                <div className="text-2xl mb-2">📚</div>
-                <div className="text-sm text-gray-400">データがありません</div>
+              <ComboChart data={cumulativeBarData} includeProjected={includeProjected} />
+
+              <div className="mt-3 pt-3 border-t border-gray-100 dark:border-white/[0.07] flex items-center justify-between">
+                <span className="text-xs text-gray-400 dark:text-slate-500">
+                  {includeProjected ? '累計（予定含む）' : '累計取得単位'}
+                </span>
+                <span className="text-sm font-bold text-gray-700 dark:text-slate-200">
+                  {cumulativeBarData[cumulativeBarData.length - 1]?.cumulative ?? 0}
+                  <span className="text-xs font-normal text-gray-400 dark:text-slate-500 ml-0.5">単位</span>
+                </span>
               </div>
-            ) : (
-              <>
-                <div className="space-y-2.5">
-                  {barData.map(({ label, credits }) => (
-                    <div key={label} className="flex items-center gap-3">
-                      <div className="text-xs text-gray-500 dark:text-slate-400 w-16 flex-shrink-0 text-right leading-tight">
-                        {label}
-                      </div>
-                      <div className="flex-1 relative h-7 bg-gray-50 dark:bg-[#1f2235] rounded-xl overflow-hidden">
-                        <div
-                          className="absolute inset-y-0 left-0 rounded-xl transition-all duration-700"
-                          style={{
-                            width: `${Math.max(4, Math.round((credits / barMax) * 100))}%`,
-                            background: includeProjected
-                              ? 'linear-gradient(90deg, #8b5cf6 0%, #a78bfa 100%)'
-                              : 'linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%)',
-                          }}
-                        />
-                        <div className="absolute inset-0 flex items-center px-3">
-                          <span className="text-xs font-semibold text-white drop-shadow-sm leading-none">{credits}</span>
-                          <span className="text-[10px] text-white/80 ml-0.5 leading-none">単位</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-4 pt-3 border-t border-gray-100 dark:border-white/[0.07] flex items-center justify-between">
-                  <span className="text-xs text-gray-400 dark:text-slate-500">
-                    {includeProjected ? '累計（予定含む）' : '累計取得単位'}
-                  </span>
-                  <span className="text-sm font-bold text-gray-700 dark:text-slate-200">
-                    {barData.reduce((s, d) => s + d.credits, 0)}
-                    <span className="text-xs font-normal text-gray-400 dark:text-slate-500 ml-0.5">単位</span>
-                  </span>
-                </div>
-              </>
-            )
+            </>
           )}
         </div>
       </div>
