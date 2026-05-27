@@ -62,7 +62,7 @@ export default function Page() {
   // ── 認証 ─────────────────────────────────────────────────────────────────
   const { data: session, status: sessionStatus } = useSession()
   // JWT callback で採番・格納された student_id（例: student_001）を使う
-  const studentId = session?.user?.student_id ?? ''
+  const studentId  = session?.user?.student_id ?? ''
 
   // ── スプラッシュスクリーン制御 ────────────────────────────────────────────────
   const [splashExiting, setSplashExiting] = useState(false)
@@ -107,7 +107,17 @@ const [tab, setTab] = useState('timetable')
   const [department, setDepartment] = useState('')
 
   // ── PWA インストール案内（オンボーディング完了後に一度だけ表示） ────────────────
-  const [showPwaPrompt, setShowPwaPrompt] = useState(false)
+  const [showPwaPrompt,  setShowPwaPrompt]  = useState(false)
+  const [showLoginSheet, setShowLoginSheet] = useState(false)
+
+  // ── デモモード ────────────────────────────────────────────────────────────────
+  // ログインせずに使う を選択したユーザーはデモモードで入場。localStorage で永続化。
+  const [demoMode, setDemoMode] = useState(() => {
+    try { return localStorage.getItem('rishu_demo_mode') === '1' } catch { return false }
+  })
+  // 画面描画コンテキストでの「ゲスト状態」= 未認証 かつ デモモード選択済み
+  const isDemoMode = sessionStatus === 'unauthenticated' && demoMode
+
   const pwaPromptCheckedRef = useRef(false)
 
   // 学年管理（handleDepartmentSelect が enrollmentYear を参照するため、先に宣言する）
@@ -356,6 +366,14 @@ const [tab, setTab] = useState('timetable')
     dedupingInterval:  5_000,
   })
 
+  // デモモード専用: 空き部屋タブ用の公開コースデータ（認証不要）
+  const { data: guestCatalogData } = useSWR(
+    isDemoMode ? '/api/catalog' : null,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 300_000 }
+  )
+  const guestCoursesAll = guestCatalogData?.courses ?? []
+
   // ── スプラッシュ終了トリガー ────────────────────────────────────────────────
   // 認証確定 + データ取得完了 / 未ログイン / エラー のいずれかで退場アニメーションを開始する。
   // ※ 2 つの Effect に分離: タイマーが setSplashExiting 起因の再レンダーでキャンセルされるのを防ぐ
@@ -422,7 +440,26 @@ const [tab, setTab] = useState('timetable')
     setDepartment('')
   }, [studentId])
 
-  // PWA インストール案内: スタンドアロン（PWA）でない限り毎回表示する
+  // ログインが完了したらデモモードフラグをクリアする
+  useEffect(() => {
+    if (sessionStatus === 'authenticated' && demoMode) {
+      try { localStorage.removeItem('rishu_demo_mode') } catch {}
+      setDemoMode(false)
+    }
+  }, [sessionStatus, demoMode])
+
+  // デモモード: PWA インストール案内を表示
+  useEffect(() => {
+    if (!isDemoMode || pwaPromptCheckedRef.current) return
+    pwaPromptCheckedRef.current = true
+    const isStandalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      window.navigator.standalone === true
+    if (isStandalone) return
+    setShowPwaPrompt(true)
+  }, [isDemoMode])
+
+  // PWA インストール案内: スタンドアロン（PWA）でない限り毎回表示する（ログイン済み）
   useEffect(() => {
     if (!department || pwaPromptCheckedRef.current) return
     pwaPromptCheckedRef.current = true
@@ -463,6 +500,14 @@ const [tab, setTab] = useState('timetable')
       return (Number.isFinite(y) && y > max) ? y : max
     }, 0)
   }, [data?.courses])
+
+  // ゲスト用最新年度（公開カタログから計算）
+  const guestLatestYear = useMemo(() => {
+    return guestCoursesAll.reduce((max, c) => {
+      const y = Number(c.academic_year)
+      return (Number.isFinite(y) && y > max) ? y : max
+    }, 0)
+  }, [guestCoursesAll])
 
   // カタログタブの初期年度を最新開講年度に設定する。
   const catalogYearInitialized = useRef(false)
@@ -962,58 +1007,40 @@ const [tab, setTab] = useState('timetable')
   // ── 起動ローディング（認証確認中・データ取得中）────────────────────────────
   if (!splashDone) return <SplashScreen exiting={splashExiting} />
 
-  // ── 未ログイン ───────────────────────────────────────────────────────────
-  if (sessionStatus === 'unauthenticated') {
+  // ── 未ログイン（デモモード未選択）→ ログイン画面 ─────────────────────────────
+  if (sessionStatus === 'unauthenticated' && !demoMode) {
+    const handleEnterDemo = () => {
+      try { localStorage.setItem('rishu_demo_mode', '1') } catch {}
+      setDemoMode(true)
+    }
     return (
       <div className="h-full bg-white dark:bg-[#0b0c12] overflow-auto">
         <div className="flex flex-col items-center px-8 pt-12 pb-8 gap-8">
 
-          {/* ロゴ + 説明 + ログインボタン */}
+          {/* ロゴ */}
           <div className="flex flex-col items-center gap-8 w-full">
-
-            {/* アイコン */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/icons/icon-512.png"
-              alt="YORA"
-              width={80}
-              height={80}
-              style={{
-                borderRadius: 18,
-                boxShadow: '0 16px 48px rgba(79,70,229,0.25), 0 4px 12px rgba(79,70,229,0.15)',
-                display: 'block',
-              }}
+              src="/icons/icon-512.png" alt="YORA" width={80} height={80}
+              style={{ borderRadius: 18, boxShadow: '0 16px 48px rgba(79,70,229,0.25), 0 4px 12px rgba(79,70,229,0.15)', display: 'block' }}
             />
-
-            {/* ブランド */}
             <div className="flex flex-col items-center gap-1.5">
-              <p className="font-semibold text-slate-900 dark:text-white"
-                 style={{ fontSize: 28, letterSpacing: '0.14em' }}>
-                YORA
-              </p>
-              <p className="text-[11px] font-light text-slate-400 dark:text-slate-600"
-                 style={{ letterSpacing: '0.08em' }}>
-                学芸が苦行を、学芸学業に。
-              </p>
+              <p className="font-semibold text-slate-900 dark:text-white" style={{ fontSize: 28, letterSpacing: '0.14em' }}>YORA</p>
+              <p className="text-[11px] font-light text-slate-400 dark:text-slate-600" style={{ letterSpacing: '0.08em' }}>学芸が苦行を、学芸学業に。</p>
             </div>
 
-            {/* 説明 + ログインボタン */}
-            <div className="w-full flex flex-col items-center gap-5">
+            {/* ボタン群 */}
+            <div className="w-full flex flex-col items-center gap-3">
               <p className="text-sm text-slate-500 dark:text-slate-400 text-center leading-relaxed">
-                Google アカウントでサインインして<br />
-                履修情報を管理しましょう
+                Google アカウントでサインインして<br />履修情報を管理しましょう
               </p>
-
               <button
                 onClick={() => signIn('google')}
                 className="w-full flex items-center justify-center gap-3
-                           bg-white dark:bg-[#1a1d27]
-                           border border-slate-200 dark:border-white/[0.08]
-                           shadow-md dark:shadow-none
-                           rounded-2xl px-6 py-4
+                           bg-white dark:bg-[#1a1d27] border border-slate-200 dark:border-white/[0.08]
+                           shadow-md dark:shadow-none rounded-2xl px-6 py-4
                            text-sm font-semibold text-slate-700 dark:text-slate-200
-                           hover:bg-slate-50 dark:hover:bg-white/[0.06]
-                           active:scale-[0.98] transition-all"
+                           hover:bg-slate-50 dark:hover:bg-white/[0.06] active:scale-[0.98] transition-all"
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -1023,20 +1050,33 @@ const [tab, setTab] = useState('timetable')
                 </svg>
                 Google でログイン
               </button>
+
+              {/* ─── ログインせずに使う ─── */}
+              <div className="relative w-full flex items-center gap-3 my-1">
+                <div className="flex-1 h-px bg-slate-100 dark:bg-white/[0.06]" />
+                <span className="text-[11px] text-slate-300 dark:text-slate-600 flex-shrink-0">または</span>
+                <div className="flex-1 h-px bg-slate-100 dark:bg-white/[0.06]" />
+              </div>
+              <button
+                onClick={handleEnterDemo}
+                className="w-full text-sm font-medium text-slate-500 dark:text-slate-400 py-3 px-4
+                           rounded-2xl border border-slate-100 dark:border-white/[0.06]
+                           hover:bg-slate-50 dark:hover:bg-white/[0.04]
+                           active:scale-[0.98] transition-all"
+              >
+                ログインせずに使う
+              </button>
             </div>
           </div>
 
-          {/* 公式PVセクション */}
+          {/* 公式PV */}
           <div className="w-full">
             <div className="flex items-center gap-2 mb-3 justify-center">
-              {/* Instagram グラデーションアイコン */}
               <svg width="14" height="14" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
                 <defs>
                   <linearGradient id="ig-grad" x1="0%" y1="100%" x2="100%" y2="0%">
-                    <stop offset="0%"   stopColor="#f09433"/>
-                    <stop offset="25%"  stopColor="#e6683c"/>
-                    <stop offset="50%"  stopColor="#dc2743"/>
-                    <stop offset="75%"  stopColor="#cc2366"/>
+                    <stop offset="0%" stopColor="#f09433"/><stop offset="25%" stopColor="#e6683c"/>
+                    <stop offset="50%" stopColor="#dc2743"/><stop offset="75%" stopColor="#cc2366"/>
                     <stop offset="100%" stopColor="#bc1888"/>
                   </linearGradient>
                 </defs>
@@ -1044,29 +1084,21 @@ const [tab, setTab] = useState('timetable')
                 <circle cx="12" cy="12" r="4.5" fill="none" stroke="white" strokeWidth="1.8"/>
                 <circle cx="17.5" cy="6.5" r="1.2" fill="white"/>
               </svg>
-              <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                公式PV
-              </p>
+              <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">公式PV</p>
             </div>
             <div className="rounded-2xl overflow-hidden border border-slate-100 dark:border-white/[0.06] shadow-sm bg-slate-50 dark:bg-[#1a1d27]">
               <iframe
                 src="https://www.instagram.com/reel/DYzAPu8IRAw/embed/"
-                width="100%"
-                height="480"
+                width="100%" height="480"
                 style={{ border: 'none', display: 'block' }}
-                loading="lazy"
-                scrolling="no"
-                allowtransparency="true"
+                loading="lazy" scrolling="no" allowtransparency="true"
                 title="YORA 公式PV"
               />
             </div>
             <p className="text-[10px] text-slate-300 dark:text-slate-600 text-center mt-2">
               表示されない場合は
-              <a href="https://www.instagram.com/reel/DYzAPu8IRAw/"
-                 target="_blank" rel="noopener noreferrer"
-                 className="text-indigo-400 dark:text-indigo-500 underline ml-0.5">
-                こちら
-              </a>
+              <a href="https://www.instagram.com/reel/DYzAPu8IRAw/" target="_blank" rel="noopener noreferrer"
+                 className="text-indigo-400 dark:text-indigo-500 underline ml-0.5">こちら</a>
             </p>
           </div>
 
@@ -1077,20 +1109,18 @@ const [tab, setTab] = useState('timetable')
               'シラバス・開講情報・免許要件は公式情報を必ずご確認ください。',
               '不具合・誤りは設定のお問い合わせからご連絡ください。',
             ].map((text, i) => (
-              <p key={i} className="text-[10px] leading-snug text-slate-400 dark:text-slate-600"
-                 style={{ letterSpacing: '0.02em' }}>
-                <span className="text-slate-300 dark:text-slate-700 mr-1">•</span>
-                {text}
+              <p key={i} className="text-[10px] leading-snug text-slate-400 dark:text-slate-600" style={{ letterSpacing: '0.02em' }}>
+                <span className="text-slate-300 dark:text-slate-700 mr-1">•</span>{text}
               </p>
             ))}
           </div>
-
         </div>
       </div>
     )
   }
 
-  if (error) {
+  // ── データ取得エラー（ログイン済みのみ） ──────────────────────────────────────
+  if (!isDemoMode && error) {
     return (
       <div className="flex flex-col items-center justify-center h-screen p-6 text-center">
         <div className="text-4xl mb-4">⚠️</div>
@@ -1108,13 +1138,15 @@ const [tab, setTab] = useState('timetable')
     )
   }
 
-  // splashDone になった時点で data は必ず存在するが、念のためガード
-  if (!data) return null
+  // splashDone になった時点でログイン済みなら data は必ず存在するが、念のためガード
+  if (!isDemoMode && !data) return null
 
-  const { courses, selectedIds, totalCredits } = data
+  const courses      = data?.courses      ?? []
+  const selectedIds  = data?.selectedIds  ?? []
+  const totalCredits = data?.totalCredits ?? 0
   // New-schema fields (gracefully absent in legacy mode)
   // statusMap は上の useMemo で構築済み（Rules of Hooks のため早期 return の前に置いてある）
-  const enrollmentVersion = data.enrollmentVersion ?? 'legacy'
+  const enrollmentVersion = data?.enrollmentVersion ?? 'legacy'
 
   // ── Main layout ────────────────────────────────────────────────────────────
 
@@ -1123,52 +1155,75 @@ const [tab, setTab] = useState('timetable')
       onTouchStart={handleEdgeTouchStart}
       onTouchEnd={handleEdgeTouchEnd}
     >
-      {/* ── プロフィールDrawer ─────────────────────────────────────────── */}
-      <ProfileDrawer
-        isOpen={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        departmentLabel={departmentLabel}
-        enrollmentYear={enrollmentYear}
-        onEnrollmentYearChange={handleEnrollmentYearChange}
-        onChangeDepartment={handleStartDepartmentChange}
-        rawLeavePeriods={rawLeavePeriods}
-        onLeavePeriodChange={mutateLeavePeriods}
-        onOpenMinorSection={handleOpenMinorSection}
-        onOpenExemption={handleOpenExemption}
-        exemptionCount={exemptions.length}
-      />
+      {/* ── プロフィールDrawer（ログイン済みのみ） ─────────────────── */}
+      {!isDemoMode && (
+        <ProfileDrawer
+          isOpen={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+          departmentLabel={departmentLabel}
+          enrollmentYear={enrollmentYear}
+          onEnrollmentYearChange={handleEnrollmentYearChange}
+          onChangeDepartment={handleStartDepartmentChange}
+          rawLeavePeriods={rawLeavePeriods}
+          onLeavePeriodChange={mutateLeavePeriods}
+          onOpenMinorSection={handleOpenMinorSection}
+          onOpenExemption={handleOpenExemption}
+          exemptionCount={exemptions.length}
+        />
+      )}
 
-      {/* ── アプリヘッダー（アバター + 学年・学科） ──────────────── */}
-      <div className="bg-white dark:bg-[#1a1d27] border-b border-gray-100 dark:border-white/[0.07] flex-shrink-0 flex items-center px-3 py-2">
-        {/* アバター → Drawer 開く */}
-        <button
-          onClick={() => setDrawerOpen(true)}
-          aria-label="プロフィール・設定を開く"
-          className="w-8 h-8 rounded-full overflow-hidden ring-2 ring-gray-100 dark:ring-white/10 shadow-sm active:scale-90 transition-transform flex-shrink-0"
-        >
-          {session?.user?.image ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={session.user.image} alt="avatar" className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full bg-indigo-400 flex items-center justify-center text-white text-xs font-bold">
-              {session?.user?.name?.[0] ?? '?'}
-            </div>
-          )}
-        </button>
+      {/* ── アプリヘッダー ──────────────────────────────────────────── */}
+      <div className="bg-white dark:bg-[#1a1d27] border-b border-gray-100 dark:border-white/[0.07] flex-shrink-0 relative flex items-center px-3 py-2">
+        {/* 左：アバター → Drawer 開く / デモ → ログインシートを開く */}
+        {isDemoMode ? (
+          <button
+            onClick={() => setShowLoginSheet(true)}
+            aria-label="ログイン"
+            className="w-8 h-8 rounded-full ring-2 ring-gray-100 dark:ring-white/10 shadow-sm
+                       active:scale-90 transition-transform flex-shrink-0
+                       bg-slate-100 dark:bg-white/[0.06] flex items-center justify-center"
+          >
+            <svg className="w-4 h-4 text-slate-400 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+            </svg>
+          </button>
+        ) : (
+          <button
+            onClick={() => setDrawerOpen(true)}
+            aria-label="プロフィール・設定を開く"
+            className="w-8 h-8 rounded-full overflow-hidden ring-2 ring-gray-100 dark:ring-white/10 shadow-sm active:scale-90 transition-transform flex-shrink-0"
+          >
+            {session?.user?.image ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={session.user.image} alt="avatar" className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full bg-indigo-400 flex items-center justify-center text-white text-xs font-bold">
+                {session?.user?.name?.[0] ?? '?'}
+              </div>
+            )}
+          </button>
+        )}
 
-        {/* 中央：タブ名 */}
-        <div className="flex-1 text-center px-2">
+        {/* 中央：タブ名（absolute で常に正確に中央） */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <span className="text-sm font-bold text-gray-800 dark:text-slate-100">
             {TABS.find(t => t.id === tab)?.label ?? ''}
           </span>
         </div>
 
-        {/* 右側：通知ベル */}
-        <NotificationBell />
+        {/* 右：通知ベル / デモは w-8 スペーサーで左右対称を維持 */}
+        {isDemoMode ? (
+          <div className="w-8 flex-shrink-0 ml-auto" />
+        ) : (
+          <div className="ml-auto">
+            <NotificationBell />
+          </div>
+        )}
       </div>
 
-      {/* オンボーディング: department 未設定時は他の操作をロック */}
-      {!department && (
+      {/* オンボーディング: department 未設定時は他の操作をロック（ゲストは対象外） */}
+      {!department && !isDemoMode && (
         <OnboardingModal
           departments={data?.departments ?? []}
           onSelect={handleDepartmentSelect}
@@ -1226,55 +1281,96 @@ const [tab, setTab] = useState('timetable')
       {/* Content */}
       <div className="flex-1 overflow-hidden">
         {tab === 'timetable' && (
-          <TimetableV2
-            courses={courses}
-            selectedIds={selectedIds}
-            onToggleEnrollment={handleToggle}
-            termFilter={timetableTermFilter} onTermFilterChange={setTimetableTermFilter}
-            academicYear={academicYear}
-            selectedGrade={selectedGrade}
-            enrollmentYear={enrollmentYear}
-            maxGrade={maxGrade}
-            onGradeChange={handleGradeChange}
-            onAddGrade={handleAddGrade}
-            onDeleteGrade={handleDeleteGrade}
-            onEnrollmentYearChange={handleEnrollmentYearChange}
-            onEntriesChange={handleEntriesChange}
-            syncKey={entrySyncKey}
-            enrollment={data.enrollment}
-            enrollmentVersion={enrollmentVersion}
-            statusMap={statusMap}
-            onStatusChange={enrollmentVersion === 'new' ? handleStatusChange : null}
-            temporaryIds={temporaryIds}
-            studentId={studentId}
-            department={department}
-            onBulkStatusDone={() => mutate()}
-            onMemoSave={handleMemoSave}
-            leaveSemesters={leaveSemesters}
-            displayGrade={displayGrade}
-          />
+          isDemoMode ? (
+            <div className="h-full flex flex-col">
+              <DemoBanner
+                message="時間割を保存・管理するにはログインが必要です"
+                onLogin={() => setShowLoginSheet(true)}
+              />
+              <div className="flex-1 min-h-0">
+                <TimetableV2
+                  courses={[]}
+                  selectedIds={[]}
+                  onToggleEnrollment={() => setShowLoginSheet(true)}
+                  termFilter={timetableTermFilter}
+                  onTermFilterChange={setTimetableTermFilter}
+                  academicYear={new Date().getFullYear()}
+                  selectedGrade={1}
+                  enrollmentYear={new Date().getFullYear()}
+                  maxGrade={4}
+                  onGradeChange={() => {}}
+                  onAddGrade={() => {}}
+                  onDeleteGrade={() => {}}
+                  onEnrollmentYearChange={() => {}}
+                  onEntriesChange={() => {}}
+                  syncKey={0}
+                  enrollment={[]}
+                  enrollmentVersion="new"
+                  statusMap={new Map()}
+                  onStatusChange={() => setShowLoginSheet(true)}
+                  temporaryIds={new Set()}
+                  studentId=""
+                  department=""
+                  onBulkStatusDone={() => {}}
+                  onMemoSave={async () => {}}
+                  leaveSemesters={[]}
+                  displayGrade={1}
+                />
+              </div>
+            </div>
+          ) : (
+            <TimetableV2
+              courses={courses}
+              selectedIds={selectedIds}
+              onToggleEnrollment={handleToggle}
+              termFilter={timetableTermFilter} onTermFilterChange={setTimetableTermFilter}
+              academicYear={academicYear}
+              selectedGrade={selectedGrade}
+              enrollmentYear={enrollmentYear}
+              maxGrade={maxGrade}
+              onGradeChange={handleGradeChange}
+              onAddGrade={handleAddGrade}
+              onDeleteGrade={handleDeleteGrade}
+              onEnrollmentYearChange={handleEnrollmentYearChange}
+              onEntriesChange={handleEntriesChange}
+              syncKey={entrySyncKey}
+              enrollment={data.enrollment}
+              enrollmentVersion={enrollmentVersion}
+              statusMap={statusMap}
+              onStatusChange={enrollmentVersion === 'new' ? handleStatusChange : null}
+              temporaryIds={temporaryIds}
+              studentId={studentId}
+              department={department}
+              onBulkStatusDone={() => mutate()}
+              onMemoSave={handleMemoSave}
+              leaveSemesters={leaveSemesters}
+              displayGrade={displayGrade}
+            />
+          )
         )}
         {/* カタログタブ: 常時マウント（タブ切替でもフィルタ・検索・年度状態を保持）
             hidden クラスで display:none にするだけで React state は維持される */}
         <div className={`h-full flex-col ${tab === 'courses' ? 'flex' : 'hidden'}`}>
-          {/* 単位認定バナー */}
-          <div className="flex-shrink-0 bg-white dark:bg-[#1a1d27] border-b border-gray-100 dark:border-white/[0.07] px-3 py-2 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500 dark:text-slate-400 font-medium">単位認定</span>
-              {exemptions.length > 0 && (
-                <span className="bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 text-xs font-bold px-1.5 py-0.5 rounded-full">
-                  {exemptions.length}件
-                </span>
-              )}
+          {/* 単位認定バナー（ゲストは非表示） */}
+          {!isDemoMode && (
+            <div className="flex-shrink-0 bg-white dark:bg-[#1a1d27] border-b border-gray-100 dark:border-white/[0.07] px-3 py-2 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500 dark:text-slate-400 font-medium">単位認定</span>
+                {exemptions.length > 0 && (
+                  <span className="bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 text-xs font-bold px-1.5 py-0.5 rounded-full">
+                    {exemptions.length}件
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={() => setExemptionOpen(true)}
+                className="text-xs font-semibold text-blue-500 bg-blue-50 dark:bg-blue-500/10 dark:text-blue-400 px-3 py-1.5 rounded-full
+                           hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors"
+              >
+                ＋ 単位認定を管理
+              </button>
             </div>
-            <button
-              onClick={() => setExemptionOpen(true)}
-              className="text-xs font-semibold text-blue-500 bg-blue-50 dark:bg-blue-500/10 dark:text-blue-400 px-3 py-1.5 rounded-full
-                         hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors"
-            >
-              ＋ 単位認定を管理
-            </button>
-          </div>
+          )}
 
           {/* カタログタブ（年度モード・raw_category 横断表示） */}
           <div className="flex-1 min-h-0">
@@ -1303,48 +1399,84 @@ const [tab, setTab] = useState('timetable')
           )}
         </div>
         {tab === 'requirements' && (
-          <div className="h-full flex flex-col">
-            <GraduationTabV2
-              studentId={studentId}
-              includeProjected={includeProjected}
-              onToggleProjected={handleToggleProjected}
-              includeTemporary={includeTemporary}
-              onToggleTemporary={handleToggleTemporary}
-              needsRecalc={needsRecalc}
-              onRecalculate={handleRecalculate}
-              recalcBusy={recalcBusy}
-              recalcError={recalcError}
-              initialMode={requirementsMode}
-              onModeChange={setRequirementsMode}
-            />
+          <div className="relative h-full flex flex-col">
+            {isDemoMode ? (
+              <GuestLockOverlay
+                title="卒業要件を確認しよう"
+                message="履修状況にもとづいて、卒業・免許取得の進捗をリアルタイムで確認できます。"
+                onLogin={() => setShowLoginSheet(true)}
+              />
+            ) : (
+              <GraduationTabV2
+                studentId={studentId}
+                includeProjected={includeProjected}
+                onToggleProjected={handleToggleProjected}
+                includeTemporary={includeTemporary}
+                onToggleTemporary={handleToggleTemporary}
+                needsRecalc={needsRecalc}
+                onRecalculate={handleRecalculate}
+                recalcBusy={recalcBusy}
+                recalcError={recalcError}
+                initialMode={requirementsMode}
+                onModeChange={setRequirementsMode}
+              />
+            )}
           </div>
         )}
         {tab === 'summary' && (
           <div className="h-full flex flex-col">
-            <Dashboard
-              studentId={studentId}
-              courses={data?.courses ?? []}
-              enrollment={data?.enrollment ?? []}
-              creditSummary={creditSummary}
-              includeProjected={includeProjected}
-              onToggleProjected={handleToggleProjected}
-              includeTemporary={includeTemporary}
-              onToggleTemporary={handleToggleTemporary}
-              needsRecalc={needsRecalc}
-              onRecalculate={handleRecalculate}
-              recalcBusy={recalcBusy}
-              recalcError={recalcError}
-              selectedGrade={selectedGrade}
-              timetableTermFilter={timetableTermFilter}
-              academicYear={academicYear}
-            />
+            {isDemoMode ? (
+              <>
+                <DemoBanner
+                  message="ログインして単位の取得状況を管理しましょう"
+                  onLogin={() => setShowLoginSheet(true)}
+                />
+                <div className="flex-1 min-h-0 flex flex-col">
+                  <Dashboard
+                    studentId=""
+                    courses={[]}
+                    enrollment={[]}
+                    creditSummary={creditSummary}
+                    includeProjected={false}
+                    onToggleProjected={() => {}}
+                    includeTemporary={false}
+                    onToggleTemporary={() => {}}
+                    needsRecalc={false}
+                    onRecalculate={() => setShowLoginSheet(true)}
+                    recalcBusy={false}
+                    recalcError={null}
+                    selectedGrade={1}
+                    timetableTermFilter="春学期"
+                    academicYear={new Date().getFullYear()}
+                  />
+                </div>
+              </>
+            ) : (
+              <Dashboard
+                studentId={studentId}
+                courses={data?.courses ?? []}
+                enrollment={data?.enrollment ?? []}
+                creditSummary={creditSummary}
+                includeProjected={includeProjected}
+                onToggleProjected={handleToggleProjected}
+                includeTemporary={includeTemporary}
+                onToggleTemporary={handleToggleTemporary}
+                needsRecalc={needsRecalc}
+                onRecalculate={handleRecalculate}
+                recalcBusy={recalcBusy}
+                recalcError={recalcError}
+                selectedGrade={selectedGrade}
+                timetableTermFilter={timetableTermFilter}
+                academicYear={academicYear}
+              />
+            )}
           </div>
         )}
         {tab === 'emptyrooms' && (
           <EmptyRooms courses={
-            latestCourseYear > 0
-              ? courses.filter(c => c.academic_year === latestCourseYear)
-              : courses
+            isDemoMode
+              ? (guestLatestYear > 0 ? guestCoursesAll.filter(c => c.academic_year === guestLatestYear) : guestCoursesAll)
+              : (latestCourseYear > 0 ? courses.filter(c => c.academic_year === latestCourseYear) : courses)
           } />
         )}
       </div>
@@ -1427,6 +1559,222 @@ const [tab, setTab] = useState('timetable')
           migrating={migrating}
         />
       )}
+
+      {/* ── ゲストログインシート ──────────────────────────────────────────────── */}
+      {showLoginSheet && (
+        <LoginSheet onClose={() => setShowLoginSheet(false)} />
+      )}
+    </div>
+  )
+}
+
+// ── DemoBanner ────────────────────────────────────────────────────────────────
+// デモモード中のタブ上部に表示するスリムなログイン促進バナー
+
+function DemoBanner({ message, onLogin }) {
+  return (
+    <div className="flex-shrink-0 bg-indigo-50 dark:bg-indigo-500/10
+                    border-b border-indigo-100 dark:border-indigo-500/20
+                    px-4 py-2.5 flex items-center gap-3">
+      <span className="flex-1 text-xs font-medium text-indigo-700 dark:text-indigo-300 leading-snug">
+        {message}
+      </span>
+      <button
+        onClick={onLogin}
+        className="flex-shrink-0 text-xs font-semibold text-white
+                   bg-indigo-500 hover:bg-indigo-600 active:scale-95
+                   px-3.5 py-1.5 rounded-full transition-colors"
+      >
+        ログイン
+      </button>
+    </div>
+  )
+}
+
+// ── LoginSheet ────────────────────────────────────────────────────────────────
+// ゲストがログインするためのボトムシート
+
+function LoginSheet({ onClose }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex flex-col justify-end"
+      style={{ left: 'max(0px, calc((100vw - 430px) / 2))', right: 'max(0px, calc((100vw - 430px) / 2))' }}
+    >
+      {/* バックドロップ */}
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+
+      {/* シート本体 */}
+      <div className="relative bg-white dark:bg-[#0b0c12] rounded-t-3xl overflow-auto max-h-[90dvh] shadow-2xl">
+        {/* ドラッグハンドル */}
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="w-10 h-1 rounded-full bg-gray-200 dark:bg-white/20" />
+        </div>
+
+        <div className="flex flex-col items-center px-8 pt-4 pb-10 gap-6">
+          {/* アイコン */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/icons/icon-512.png"
+            alt="YORA"
+            width={64}
+            height={64}
+            style={{
+              borderRadius: 16,
+              boxShadow: '0 12px 36px rgba(79,70,229,0.22), 0 4px 10px rgba(79,70,229,0.12)',
+              display: 'block',
+            }}
+          />
+
+          {/* ブランド */}
+          <div className="flex flex-col items-center gap-1">
+            <p className="font-semibold text-slate-900 dark:text-white"
+               style={{ fontSize: 24, letterSpacing: '0.14em' }}>
+              YORA
+            </p>
+            <p className="text-[11px] font-light text-slate-400 dark:text-slate-600"
+               style={{ letterSpacing: '0.08em' }}>
+              学芸が苦行を、学芸学業に。
+            </p>
+          </div>
+
+          {/* ログインセクション */}
+          <div className="w-full flex flex-col items-center gap-3">
+            <p className="text-sm text-slate-500 dark:text-slate-400 text-center leading-relaxed">
+              時間割を保存したり、卒業要件を<br />確認するにはログインが必要です
+            </p>
+            <p className="text-xs font-medium text-indigo-400 dark:text-indigo-500">
+              もちろん無料です ☀️
+            </p>
+            <button
+              onClick={() => signIn('google')}
+              className="w-full flex items-center justify-center gap-3
+                         bg-white dark:bg-[#1a1d27]
+                         border border-slate-200 dark:border-white/[0.08]
+                         shadow-md dark:shadow-none
+                         rounded-2xl px-6 py-4
+                         text-sm font-semibold text-slate-700 dark:text-slate-200
+                         hover:bg-slate-50 dark:hover:bg-white/[0.06]
+                         active:scale-[0.98] transition-all"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </svg>
+              Google でログイン
+            </button>
+          </div>
+
+          {/* 公式PV */}
+          <div className="w-full">
+            <div className="flex items-center gap-2 mb-3 justify-center">
+              <svg width="14" height="14" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+                <defs>
+                  <linearGradient id="ig-login" x1="0%" y1="100%" x2="100%" y2="0%">
+                    <stop offset="0%"   stopColor="#f09433"/>
+                    <stop offset="50%"  stopColor="#dc2743"/>
+                    <stop offset="100%" stopColor="#bc1888"/>
+                  </linearGradient>
+                </defs>
+                <rect x="2" y="2" width="20" height="20" rx="5" ry="5" fill="url(#ig-login)"/>
+                <circle cx="12" cy="12" r="4.5" fill="none" stroke="white" strokeWidth="1.8"/>
+                <circle cx="17.5" cy="6.5" r="1.2" fill="white"/>
+              </svg>
+              <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                公式PV
+              </p>
+            </div>
+            <div className="rounded-2xl overflow-hidden border border-slate-100 dark:border-white/[0.06] shadow-sm bg-slate-50 dark:bg-[#1a1d27]">
+              <iframe
+                src="https://www.instagram.com/reel/DYzAPu8IRAw/embed/"
+                width="100%"
+                height="480"
+                style={{ border: 'none', display: 'block' }}
+                loading="lazy"
+                scrolling="no"
+                allowtransparency="true"
+                title="YORA 公式PV"
+              />
+            </div>
+            <p className="text-[10px] text-slate-300 dark:text-slate-600 text-center mt-2">
+              表示されない場合は
+              <a href="https://www.instagram.com/reel/DYzAPu8IRAw/"
+                 target="_blank" rel="noopener noreferrer"
+                 className="text-indigo-400 dark:text-indigo-500 underline ml-0.5">
+                こちら
+              </a>
+            </p>
+          </div>
+
+          {/* 注意書き */}
+          <div className="w-full flex flex-col gap-1.5">
+            {[
+              '非公式アプリです。大学・学部とは無関係です。',
+              'シラバス・開講情報・免許要件は公式情報を必ずご確認ください。',
+              '不具合・誤りは設定のお問い合わせからご連絡ください。',
+            ].map((text, i) => (
+              <p key={i} className="text-[10px] leading-snug text-slate-400 dark:text-slate-600"
+                 style={{ letterSpacing: '0.02em' }}>
+                <span className="text-slate-300 dark:text-slate-700 mr-1">•</span>
+                {text}
+              </p>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── GuestLockOverlay ──────────────────────────────────────────────────────────
+// ゲスト向け: ログインが必要な機能にかぶせるオーバーレイ
+
+function GuestLockOverlay({ title, message, onLogin }) {
+  return (
+    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center
+                    bg-[#f1f5f9]/88 dark:bg-[#111318]/88 backdrop-blur-[3px]">
+      <div className="flex flex-col items-center gap-5 px-10 text-center max-w-[280px]">
+        {/* 鍵アイコン */}
+        <div className="w-14 h-14 rounded-2xl bg-white dark:bg-[#1a1d27] shadow-sm
+                        flex items-center justify-center">
+          <svg className="w-7 h-7 text-slate-400 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+              d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+          </svg>
+        </div>
+
+        {/* テキスト */}
+        <div className="flex flex-col gap-1.5">
+          <p className="text-[15px] font-semibold text-gray-800 dark:text-slate-100">{title}</p>
+          {message && (
+            <p className="text-xs text-gray-500 dark:text-slate-400 leading-relaxed">{message}</p>
+          )}
+          <p className="text-xs font-medium text-indigo-400 dark:text-indigo-500 mt-0.5">
+            もちろん無料です ☀️
+          </p>
+        </div>
+
+        {/* ログインボタン */}
+        <button
+          onClick={onLogin}
+          className="w-full flex items-center justify-center gap-2.5
+                     bg-white dark:bg-[#1a1d27]
+                     border border-slate-200 dark:border-white/[0.08]
+                     shadow-sm rounded-2xl px-6 py-3.5
+                     text-sm font-semibold text-slate-700 dark:text-slate-200
+                     hover:bg-slate-50 dark:hover:bg-white/[0.06]
+                     active:scale-[0.98] transition-all"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+          </svg>
+          Google でログイン
+        </button>
+      </div>
     </div>
   )
 }

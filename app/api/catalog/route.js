@@ -1,6 +1,4 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { getRange } from '@/lib/sheets'
 import { normalizeCourse } from '@/lib/transform'
 
@@ -42,11 +40,6 @@ function expandCoursesByYear(courses) {
  */
 export async function GET(request) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.student_id) {
-      return NextResponse.json({ error: 'ログインが必要です' }, { status: 401 })
-    }
-
     const { searchParams } = new URL(request.url)
     const yearParam   = searchParams.get('year')
     const selectedYear = yearParam ? parseInt(yearParam, 10) : null
