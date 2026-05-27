@@ -9,14 +9,14 @@ import { useSheetClose } from '@/lib/useSheetClose'
  *
  * 表示条件:
  *   - すでに standalone モード（インストール済み）でない
- *   - localStorage に 'rishu_pwa_prompted' が未設定
- *
- * Props:
- *   onClose() — 閉じるときに呼ぶ（localStorage 書き込みは親側で行う）
+ *   - デスクトップブラウザでない
  */
 export default function PwaInstallPrompt({ onClose }) {
   const platform = detectPlatform()
   const { closing, closeSheet } = useSheetClose(onClose)
+
+  // デスクトップは非表示
+  if (platform === 'desktop') return null
 
   return (
     <div
@@ -76,15 +76,31 @@ export default function PwaInstallPrompt({ onClose }) {
 function detectPlatform() {
   if (typeof navigator === 'undefined') return 'other'
   const ua = navigator.userAgent
+
   const isIOS     = /iPhone|iPad|iPod/.test(ua)
   const isAndroid = /Android/.test(ua)
-  const isCriOS   = /CriOS/.test(ua)                       // iOS版Chrome
-  const isSafari  = /Safari/.test(ua) && !/Chrome|CriOS|FxiOS|EdgiOS/.test(ua)
-  const isChrome  = /Chrome/.test(ua) && !/Edg\//.test(ua) // Android Chrome
+  const isMobile  = isIOS || isAndroid
 
-  if (isIOS && isSafari)  return 'ios-safari'
-  if (isIOS && isCriOS)   return 'ios-chrome'
-  if (isAndroid && isChrome) return 'android-chrome'
+  // デスクトップ
+  if (!isMobile) return 'desktop'
+
+  // アプリ内ブラウザ（LINE / Instagram / Twitter / Facebook / TikTok など）
+  const isInApp = /Line\/|FBAN|FBAV|Instagram|Twitter|TikTok|musical_ly|Snapchat|Pinterest|LinkedIn|WeChat|MicroMessenger/.test(ua)
+  if (isInApp && isIOS)     return 'inapp-ios'
+  if (isInApp && isAndroid) return 'inapp-android'
+
+  const isCriOS  = /CriOS/.test(ua)                        // iOS版Chrome
+  const isSafari = /Safari/.test(ua) && !/Chrome|CriOS|FxiOS|EdgiOS/.test(ua)
+  const isChrome = /Chrome/.test(ua) && !/Edg\//.test(ua)  // Android Chrome
+
+  if (isIOS && isSafari)       return 'ios-safari'
+  if (isIOS && isCriOS)        return 'ios-chrome'
+  if (isAndroid && isChrome)   return 'android-chrome'
+
+  // iOS のその他ブラウザ（Firefox, Edge など）
+  if (isIOS)     return 'ios-other'
+  if (isAndroid) return 'android-other'
+
   return 'other'
 }
 
@@ -105,6 +121,84 @@ function Step({ num, children }) {
 }
 
 function PlatformSteps({ platform }) {
+
+  // ── アプリ内ブラウザ（LINE・Instagram など）iOS ──────────────────────────────
+  if (platform === 'inapp-ios') {
+    return (
+      <div className="flex flex-col gap-3">
+        <div className="bg-amber-50 dark:bg-amber-500/10 rounded-2xl px-4 py-3">
+          <p className="text-[13px] font-semibold text-amber-700 dark:text-amber-300 leading-relaxed">
+            このブラウザではホーム画面に追加できません。
+            まず <span className="underline">Safari</span> で開き直してください。
+          </p>
+        </div>
+        <Step num="1">
+          画面下部または右上の
+          <span className="font-semibold text-gray-900 dark:text-white mx-1">「…」「⋮」「共有」</span>
+          などのメニューをタップ
+        </Step>
+        <Step num="2">
+          <span className="font-semibold text-gray-900 dark:text-white mr-1">「Safari で開く」</span>
+          または
+          <span className="font-semibold text-gray-900 dark:text-white mx-1">「ブラウザで開く」</span>
+          をタップ
+        </Step>
+        <Step num="3">
+          Safari が開いたら、画面下部の共有ボタン
+          <span className="inline-block mx-1 text-[11px] bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded font-mono">
+            □↑
+          </span>
+          をタップ
+        </Step>
+        <Step num="4">
+          <span className="font-semibold text-gray-900 dark:text-white mr-1">「ホーム画面に追加」</span>
+          をタップ → 右上の
+          <span className="font-semibold text-gray-900 dark:text-white mx-1">「追加」</span>
+          で完了
+        </Step>
+      </div>
+    )
+  }
+
+  // ── アプリ内ブラウザ（LINE・Instagram など）Android ─────────────────────────
+  if (platform === 'inapp-android') {
+    return (
+      <div className="flex flex-col gap-3">
+        <div className="bg-amber-50 dark:bg-amber-500/10 rounded-2xl px-4 py-3">
+          <p className="text-[13px] font-semibold text-amber-700 dark:text-amber-300 leading-relaxed">
+            このブラウザではホーム画面に追加できません。
+            まず <span className="underline">Chrome</span> で開き直してください。
+          </p>
+        </div>
+        <Step num="1">
+          画面右上の
+          <span className="font-semibold text-gray-900 dark:text-white mx-1">「…」「⋮」</span>
+          などのメニューをタップ
+        </Step>
+        <Step num="2">
+          <span className="font-semibold text-gray-900 dark:text-white mr-1">「Chrome で開く」</span>
+          または
+          <span className="font-semibold text-gray-900 dark:text-white mx-1">「ブラウザで開く」</span>
+          をタップ
+        </Step>
+        <Step num="3">
+          Chrome が開いたら、右上のメニュー
+          <span className="inline-block mx-1 text-[11px] bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded font-mono">
+            ⋮
+          </span>
+          をタップ
+        </Step>
+        <Step num="4">
+          <span className="font-semibold text-gray-900 dark:text-white mr-1">「ホーム画面に追加」</span>
+          または
+          <span className="font-semibold text-gray-900 dark:text-white mx-1">「アプリをインストール」</span>
+          をタップして完了
+        </Step>
+      </div>
+    )
+  }
+
+  // ── Safari（iPhone / iPad）────────────────────────────────────────────────────
   if (platform === 'ios-safari') {
     return (
       <div className="flex flex-col gap-3">
@@ -132,38 +226,41 @@ function PlatformSteps({ platform }) {
     )
   }
 
-  if (platform === 'ios-chrome') {
+  // ── iOS Chrome → Safari に誘導 ───────────────────────────────────────────────
+  if (platform === 'ios-chrome' || platform === 'ios-other') {
     return (
       <div className="flex flex-col gap-3">
-        <p className="text-[12px] font-semibold text-amber-500 uppercase tracking-wide mb-1">
-          Chrome（iPhone / iPad）
-        </p>
-        <div className="bg-amber-50 dark:bg-amber-500/10 rounded-2xl px-4 py-3 mb-1">
-          <p className="text-[13px] text-amber-700 dark:text-amber-300 leading-relaxed">
-            iOS 版 Chrome ではホーム画面への追加に対応していません。
-            <span className="font-semibold">Safari</span> で開き直してから追加してください。
+        <div className="bg-amber-50 dark:bg-amber-500/10 rounded-2xl px-4 py-3">
+          <p className="text-[13px] font-semibold text-amber-700 dark:text-amber-300 leading-relaxed">
+            iPhone では <span className="underline">Safari</span> でのみホーム画面に追加できます。
           </p>
         </div>
         <Step num="1">
           右下の
-          <span className="font-semibold text-gray-900 dark:text-white mx-1">「...」メニュー</span>
+          <span className="font-semibold text-gray-900 dark:text-white mx-1">「…」メニュー</span>
           →
           <span className="font-semibold text-gray-900 dark:text-white mx-1">「Safari で開く」</span>
           をタップ
         </Step>
         <Step num="2">
-          Safari で開いたら、共有ボタン
+          Safari で開いたら、画面下部の共有ボタン
           <span className="inline-block mx-1 text-[11px] bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded font-mono">
             □↑
           </span>
-          →
-          <span className="font-semibold text-gray-900 dark:text-white mx-1">「ホーム画面に追加」</span>
+          をタップ
+        </Step>
+        <Step num="3">
+          <span className="font-semibold text-gray-900 dark:text-white mr-1">「ホーム画面に追加」</span>
+          → 右上の
+          <span className="font-semibold text-gray-900 dark:text-white mx-1">「追加」</span>
+          で完了
         </Step>
       </div>
     )
   }
 
-  if (platform === 'android-chrome') {
+  // ── Android Chrome ────────────────────────────────────────────────────────────
+  if (platform === 'android-chrome' || platform === 'android-other') {
     return (
       <div className="flex flex-col gap-3">
         <p className="text-[12px] font-semibold text-indigo-500 uppercase tracking-wide mb-1">
@@ -191,19 +288,5 @@ function PlatformSteps({ platform }) {
     )
   }
 
-  // PC / その他
-  return (
-    <div className="flex flex-col gap-3">
-      <p className="text-[13px] text-gray-600 dark:text-slate-400 leading-relaxed">
-        ブラウザのアドレスバー右端にある
-        <span className="font-semibold text-gray-900 dark:text-white mx-1">インストールボタン</span>
-        をクリックするか、メニューから
-        <span className="font-semibold text-gray-900 dark:text-white mx-1">「アプリをインストール」</span>
-        を選択してください。
-      </p>
-      <p className="text-[12px] text-gray-400 dark:text-slate-500">
-        スマートフォンではより快適に使用できます。
-      </p>
-    </div>
-  )
+  return null
 }

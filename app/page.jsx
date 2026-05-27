@@ -452,6 +452,8 @@ const [tab, setTab] = useState('timetable')
   useEffect(() => {
     if (!isDemoMode || pwaPromptCheckedRef.current) return
     pwaPromptCheckedRef.current = true
+    const isMobile = /iPhone|iPad|iPod|Android/.test(navigator.userAgent)
+    if (!isMobile) return  // デスクトップは非表示
     const isStandalone =
       window.matchMedia('(display-mode: standalone)').matches ||
       window.navigator.standalone === true
@@ -463,6 +465,8 @@ const [tab, setTab] = useState('timetable')
   useEffect(() => {
     if (!department || pwaPromptCheckedRef.current) return
     pwaPromptCheckedRef.current = true
+    const isMobile = /iPhone|iPad|iPod|Android/.test(navigator.userAgent)
+    if (!isMobile) return  // デスクトップは非表示
     // すでにスタンドアローン（インストール済み）なら表示しない
     const isStandalone =
       window.matchMedia('(display-mode: standalone)').matches ||
