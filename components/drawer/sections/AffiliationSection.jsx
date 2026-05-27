@@ -67,6 +67,7 @@ export default function AffiliationSection({
   onOpenMinorSection = null,
   onOpenExemption    = null,
   exemptionCount     = 0,
+  maxAcademicYear    = 0,
 }) {
   const [yearModalOpen,  setYearModalOpen]  = useState(false)
   const [leaveModalOpen, setLeaveModalOpen] = useState(false)
@@ -128,6 +129,7 @@ export default function AffiliationSection({
       {yearModalOpen && (
         <EnrollmentYearModal
           current={enrollmentYear}
+          maxAcademicYear={maxAcademicYear}
           onSave={(y) => { onEnrollmentYearChange(y); setYearModalOpen(false) }}
           onClose={() => setYearModalOpen(false)}
         />

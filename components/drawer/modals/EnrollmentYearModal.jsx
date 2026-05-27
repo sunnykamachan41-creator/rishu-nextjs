@@ -2,11 +2,12 @@
 import { useState } from 'react'
 import { useSheetClose } from '@/lib/useSheetClose'
 
-const CURRENT_YEAR = new Date().getFullYear()
-const YEARS = [2026, 2025, 2024, 2023].filter(y => y <= CURRENT_YEAR)
+const MIN_YEAR = 2023
 
-export default function EnrollmentYearModal({ current, onSave, onClose }) {
-  const [selected, setSelected] = useState(current ?? CURRENT_YEAR)
+export default function EnrollmentYearModal({ current, maxAcademicYear = 0, onSave, onClose }) {
+  const maxYear = maxAcademicYear > 0 ? maxAcademicYear : new Date().getFullYear()
+  const YEARS = Array.from({ length: maxYear - MIN_YEAR + 1 }, (_, i) => maxYear - i)
+  const [selected, setSelected] = useState(current ?? maxYear)
   const { closing, closeSheet } = useSheetClose(onClose)
 
   return (
@@ -44,7 +45,7 @@ export default function EnrollmentYearModal({ current, onSave, onClose }) {
                     : 'bg-gray-50 dark:bg-slate-700 text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-600'}`}
               >
                 {y}年度入学
-                {y === CURRENT_YEAR && (
+                {y === maxYear && (
                   <span className="ml-2 text-[11px] opacity-70">（今年度）</span>
                 )}
               </button>
