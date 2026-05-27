@@ -1169,6 +1169,7 @@ const [tab, setTab] = useState('timetable')
           onOpenMinorSection={handleOpenMinorSection}
           onOpenExemption={handleOpenExemption}
           exemptionCount={exemptions.length}
+          maxAcademicYear={latestCourseYear}
         />
       )}
 

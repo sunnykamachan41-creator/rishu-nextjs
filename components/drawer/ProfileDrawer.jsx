@@ -7,6 +7,7 @@ import AffiliationSection   from './sections/AffiliationSection'
 import DisplaySection       from './sections/DisplaySection'
 import DataSection          from './sections/DataSection'
 import SupportSection       from './sections/SupportSection'
+import ShareSection         from './sections/ShareSection'
 import AuthSection          from './sections/AuthSection'
 
 /**
@@ -142,6 +143,7 @@ export default function ProfileDrawer({
             <DisplaySection />
             <DataSection />
             <SupportSection onClose={onClose} />
+            <ShareSection />
             <AuthSection onClose={onClose} />
 
             {/* ── フッターロゴ ──────────────────────────────────────────────

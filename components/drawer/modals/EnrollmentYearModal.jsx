@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useSheetClose } from '@/lib/useSheetClose'
 
 const CURRENT_YEAR = new Date().getFullYear()
-const YEARS = Array.from({ length: 10 }, (_, i) => CURRENT_YEAR - i)
+const YEARS = [2026, 2025, 2024, 2023].filter(y => y <= CURRENT_YEAR)
 
 export default function EnrollmentYearModal({ current, onSave, onClose }) {
   const [selected, setSelected] = useState(current ?? CURRENT_YEAR)
