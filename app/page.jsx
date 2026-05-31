@@ -34,6 +34,7 @@ import { useLeavePeriods } from '@/lib/useLeavePeriods'
 import PreEnrollMigrateModal  from '@/components/PreEnrollMigrateModal'
 import NotificationBell       from '@/components/NotificationBell'
 import PwaInstallPrompt       from '@/components/PwaInstallPrompt'
+import GraduationArchiveModal from '@/components/graduation/GraduationArchiveModal'
 
 // ── SWR fetcher ───────────────────────────────────────────────────────────────
 
@@ -352,6 +353,10 @@ const [tab, setTab] = useState('timetable')
   // 同一 studentId+latestYear の組み合わせで重複チェックを防ぐ ref
   const migrateLastChecked = useRef('')
 
+  // ── YORA ARCHIVE ─────────────────────────────────────────────────────────────
+  const [showArchive,         setShowArchive]         = useState(false)
+  const [showGradConfirm,     setShowGradConfirm]     = useState(false)
+
   // studentId が変わったらチェック済みフラグをリセット
   useEffect(() => {
     migrateLastChecked.current = ''
@@ -422,6 +427,18 @@ const [tab, setTab] = useState('timetable')
 
   // ドロワーから学科変更を開始するハンドラ
   // 変更前の department_id を退避しておき、キャンセル時に復元できるようにする
+  // デモモード用シェア
+  const handleDemoShare = useCallback(async () => {
+    const url  = window.location.origin
+    const text = '東京学芸大学の履修管理アプリ「YORA」📚 時間割・卒業要件をスマートに管理できます！'
+    if (navigator.share) {
+      try { await navigator.share({ title: 'YORA', text, url }); return } catch {}
+    }
+    try {
+      await navigator.clipboard.writeText(url)
+    } catch {}
+  }, [])
+
   const handleStartDepartmentChange = useCallback(() => {
     setPrevDepartment(department)  // 現在値を退避
     setDepartment('')              // '' にセット → OnboardingModal が開く
@@ -552,8 +569,17 @@ const [tab, setTab] = useState('timetable')
         // 仮登録なし → 即座に年度更新を記録
         try { localStorage.setItem(lsKey, String(latestCourseYear)) } catch {}
       }
+
+      // ── 5年生判定: 卒業確認モーダルを表示 ──────────────────────────────────
+      // enrollmentYear = 入学年度（例:2021）、latestCourseYear = 最新開講年度（例:2025）
+      // 差が4以上 = 4年間終了 → 卒業の可能性
+      const archiveKey = `yora_archive_unlocked_${studentId}`
+      const alreadyUnlocked = (() => { try { return !!localStorage.getItem(archiveKey) } catch { return false } })()
+      if (!alreadyUnlocked && enrollmentYear && latestCourseYear - enrollmentYear >= 4) {
+        setShowGradConfirm(true)
+      }
     }
-  }, [latestCourseYear, studentId, data]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [latestCourseYear, studentId, data, enrollmentYear]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // 移行確定: API 呼び出し → localStorage 更新 → SWR revalidate
   const handleMigrateConfirm = useCallback(async (migrableClassIds) => {
@@ -613,7 +639,7 @@ const [tab, setTab] = useState('timetable')
     // ── 再履修・聴講チェック（新規追加時のみ）───────────────────────────────
     if (newStatus !== 'REMOVE' && isAdding && course) {
       const enrollment = data?.enrollment ?? []
-      if (shouldShowReEnrollModal(course.course_id, enrollment)) {
+      if (shouldShowReEnrollModal(course.course_id, enrollment, recognizedCourseIdSet)) {
         setReEnrollModal({ classId, courseId, course })
         return
       }
@@ -758,7 +784,7 @@ const [tab, setTab] = useState('timetable')
     // ── 再履修・聴講チェック（追加時のみ）────────────────────────────────────
     if (isAdding && course) {
       const enrollment = data?.enrollment ?? []
-      if (shouldShowReEnrollModal(course.course_id, enrollment)) {
+      if (shouldShowReEnrollModal(course.course_id, enrollment, recognizedCourseIdSet)) {
         setReEnrollModal({ classId, courseId, course })
         return
       }
@@ -1174,6 +1200,9 @@ const [tab, setTab] = useState('timetable')
           onOpenExemption={handleOpenExemption}
           exemptionCount={exemptions.length}
           maxAcademicYear={latestCourseYear}
+          onOpenArchive={() => setShowArchive(true)}
+          onRecalculate={handleRecalculate}
+          recalcBusy={recalcBusy}
         />
       )}
 
@@ -1217,9 +1246,20 @@ const [tab, setTab] = useState('timetable')
           </span>
         </div>
 
-        {/* 右：通知ベル / デモは w-8 スペーサーで左右対称を維持 */}
+        {/* 右：通知ベル / デモはシェアボタン */}
         {isDemoMode ? (
-          <div className="w-8 flex-shrink-0 ml-auto" />
+          <button
+            onClick={handleDemoShare}
+            aria-label="シェア"
+            className="w-8 h-8 flex-shrink-0 ml-auto rounded-full flex items-center justify-center
+                       text-gray-500 dark:text-slate-400
+                       hover:bg-gray-100 dark:hover:bg-white/[0.06] active:scale-90 transition-all"
+          >
+            <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round"
+                d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+            </svg>
+          </button>
         ) : (
           <div className="ml-auto">
             <NotificationBell />
@@ -1569,6 +1609,48 @@ const [tab, setTab] = useState('timetable')
       {showLoginSheet && (
         <LoginSheet onClose={() => setShowLoginSheet(false)} />
       )}
+
+      {/* ── 卒業確認ダイアログ ────────────────────────────────────────────────── */}
+      {showGradConfirm && (
+        <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/40" style={{ backdropFilter: 'blur(2px)' }}>
+          <div className="w-full max-w-sm mx-auto bg-white rounded-t-3xl px-6 pt-6 pb-10 flex flex-col items-center gap-4">
+            <div className="w-10 h-1 bg-gray-200 rounded-full mb-1" />
+            <img src="/icons/icon-192.png" className="w-14 h-14 rounded-2xl" alt="YORA" />
+            <div className="text-center">
+              <div className="text-[#1e2d4e] font-bold text-lg" style={{ fontFamily: "'Noto Serif JP', serif" }}>
+                卒業しましたか？
+              </div>
+              <div className="text-[#8a8a7a] text-sm mt-1 leading-relaxed">
+                4年間のあなたの記録を<br />YORA ARCHIVEで振り返りませんか。
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                const archiveKey = `yora_archive_unlocked_${studentId}`
+                try { localStorage.setItem(archiveKey, '1') } catch {}
+                setShowGradConfirm(false)
+                setShowArchive(true)
+              }}
+              className="w-full py-3 rounded-2xl text-white font-bold text-sm"
+              style={{ background: '#1e2d4e' }}
+            >
+              YORA ARCHIVE を見る
+            </button>
+            <button
+              onClick={() => setShowGradConfirm(false)}
+              className="text-[#8a8a7a] text-sm"
+            >
+              あとで
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── YORA ARCHIVE モーダル ─────────────────────────────────────────────── */}
+      <GraduationArchiveModal
+        open={showArchive}
+        onClose={() => setShowArchive(false)}
+      />
     </div>
   )
 }

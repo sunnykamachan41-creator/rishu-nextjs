@@ -9,6 +9,7 @@ import DataSection          from './sections/DataSection'
 import SupportSection       from './sections/SupportSection'
 import ShareSection         from './sections/ShareSection'
 import AuthSection          from './sections/AuthSection'
+import HelpSection          from './sections/HelpSection'
 
 /**
  * 学生専用コントロールセンター — 左からスライドするDrawer
@@ -34,10 +35,18 @@ export default function ProfileDrawer({
   onOpenExemption    = null,  // 単位認定 → カタログタブに飛ぶ
   exemptionCount     = 0,
   maxAcademicYear    = 0,
+  onOpenArchive      = null,  // YORA ARCHIVE を開くコールバック
+  onRecalculate      = null,  // 卒業要件再計算コールバック
+  recalcBusy         = false,
 }) {
   const { data: session }                     = useSession()
   const { profile, isLoading, updateProfile } = useUserProfile()
   const touchStartX                           = useRef(null)
+
+  // YORA ARCHIVE のアンロック状態
+  const studentId    = session?.user?.student_id ?? ''
+  const archiveKey   = studentId ? `yora_archive_unlocked_${studentId}` : ''
+  const archiveUnlocked = archiveKey ? (() => { try { return !!localStorage.getItem(archiveKey) } catch { return false } })() : false
 
   // ESC キーで閉じる
   useEffect(() => {
@@ -143,9 +152,26 @@ export default function ProfileDrawer({
               maxAcademicYear={maxAcademicYear}
             />
             <DisplaySection />
-            <DataSection />
+            <DataSection onRecalculate={onRecalculate} recalcBusy={recalcBusy} />
+            <HelpSection />
             <SupportSection onClose={onClose} />
             <ShareSection />
+
+            {/* YORA ARCHIVE（卒業フラグが立ったユーザーのみ表示） */}
+            {archiveUnlocked && onOpenArchive && (
+              <button
+                onClick={() => { onClose(); setTimeout(onOpenArchive, 300) }}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-left active:scale-[0.98] transition-all"
+                style={{ background: '#1e2d4e' }}
+              >
+                <img src="/icons/icon-192.png" className="w-8 h-8 rounded-xl flex-shrink-0" alt="YORA" />
+                <div>
+                  <div style={{ fontFamily: "'League Spartan', sans-serif", fontSize: 13, fontWeight: 900, letterSpacing: '0.1em', color: 'white', lineHeight: 1 }}>YORA ARCHIVE</div>
+                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,.5)', marginTop: 2 }}>4年間の記録を振り返る</div>
+                </div>
+                <svg className="ml-auto" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 18l6-6-6-6"/></svg>
+              </button>
+            )}
             <AuthSection onClose={onClose} />
 
             {/* ── フッターロゴ ──────────────────────────────────────────────

@@ -13,7 +13,15 @@ function TrashIcon() {
   )
 }
 
-export default function DataSection() {
+function RecalcIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+    </svg>
+  )
+}
+
+export default function DataSection({ onRecalculate, recalcBusy }) {
   const [confirmOpen, setConfirmOpen] = useState(false)
 
   const handleReset = () => {
@@ -30,6 +38,16 @@ export default function DataSection() {
   return (
     <>
       <DrawerSection label="データ">
+        {/* 再計算 */}
+        {onRecalculate && (
+          <DrawerItem
+            icon={<RecalcIcon />}
+            label={recalcBusy ? '再計算中...' : '卒業要件を再計算'}
+            sublabel="単位数が合わない・更新されない場合に実行"
+            chevron={!recalcBusy}
+            onPress={() => !recalcBusy && onRecalculate()}
+          />
+        )}
         <DrawerItem
           icon={<TrashIcon />}
           label="ローカルデータを初期化"

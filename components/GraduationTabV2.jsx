@@ -624,9 +624,9 @@ function LicenseCard({ license, toggling, onRemove }) {
                     )}
                   </div>
                   <div className="divide-y divide-gray-50 dark:divide-white/[0.05]">
-                    {groupItems.map(item => (
+                    {groupItems.map((item, idx) => (
                       <RequirementItem
-                        key={item.category || item.display_name}
+                        key={`${item.category || ''}_${item.display_name || ''}_${idx}`}
                         item={item}
                       />
                     ))}
@@ -636,9 +636,9 @@ function LicenseCard({ license, toggling, onRemove }) {
             })
           ) : (
             <div className="divide-y divide-gray-50">
-              {items.map(item => (
+              {items.map((item, idx) => (
                 <RequirementItem
-                  key={item.category || item.display_name}
+                  key={`${item.category || ''}_${item.display_name || ''}_${idx}`}
                   item={item}
                 />
               ))}
@@ -774,9 +774,9 @@ function GroupSection({ group, items }) {
 
       {open && (
         <div className="divide-y divide-gray-50 dark:divide-white/[0.05]">
-          {items.map(item => (
+          {items.map((item, idx) => (
             <RequirementItem
-              key={item.category || item.display_name}
+              key={`${item.category || ''}_${item.display_name || ''}_${idx}`}
               item={item}
             />
           ))}

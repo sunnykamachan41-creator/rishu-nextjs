@@ -48,13 +48,16 @@ export const MODAL_ONLY_STATUSES: EnrollmentStatus[] = ['AUDIT', 'RE_ENROLL']
  * Returns true when adding this course should trigger the ReEnrollModal instead
  * of directly enrolling.
  *
- * Triggered when the same course_id already has a COMPLETED or FAILED record
- * in the current enrollment list.
+ * Triggered when:
+ *   - the same course_id already has a COMPLETED or FAILED record in enrollment, OR
+ *   - the course_id is in recognizedCourseIds（単位認定済み → 聴講UXを流用）
  */
 export function shouldShowReEnrollModal(
   courseId: string,
   enrollment: Array<{ course_id: string; status: EnrollmentStatus }>,
+  recognizedCourseIds: Set<string> = new Set(),
 ): boolean {
+  if (recognizedCourseIds.has(courseId)) return true
   return enrollment.some(
     e => e.course_id === courseId &&
          (e.status === 'COMPLETED' || e.status === 'FAILED'),
