@@ -1024,12 +1024,13 @@ const [tab, setTab] = useState('timetable')
   // ── 単位集計（学年別・カテゴリ別） ───────────────────────────────────────────
   // Hooks must run unconditionally — pass data?.* so it handles null gracefully.
   const creditSummary = useCreditSummary({
-    courses:        data?.courses,
-    selectedIds:    activeIds,   // COMPLETED only / projected に応じて切り替え
+    courses:          data?.courses,
+    selectedIds:      activeIds,   // COMPLETED only / projected に応じて切り替え
     enrollmentYear,
     maxGrade,
-    syncKey:    entrySyncKey,
-    exemptions,             // enrollment とは別管理。集計時のみ統合
+    syncKey:          entrySyncKey,
+    exemptions,                    // enrollment とは別管理。集計時のみ統合
+    recognizedCourses: data?.recognizedCourses ?? [],  // 単位認定（recognized_courses）
   })
 
   // ── Render states ─────────────────────────────────────────────────────────
