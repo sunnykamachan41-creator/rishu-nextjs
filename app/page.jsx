@@ -1570,13 +1570,13 @@ const [tab, setTab] = useState('timetable')
                 {/* Liquid Glass カプセル — layoutId でタブ間を滑らかに移動 */}
                 {active && (
                   <motion.span
-                    layoutId="bottom-nav-active"
+                    layoutId="nav-indicator"
                     className="absolute inset-x-0.5 inset-y-1 rounded-[13px] nav-glass-pill"
                     style={{ zIndex: 0 }}
                     transition={{
                       type: 'spring',
-                      stiffness: 450,
-                      damping: 35,
+                      stiffness: 350,
+                      damping: 30,
                     }}
                   />
                 )}
