@@ -951,6 +951,34 @@ const [tab, setTab] = useState('timetable')
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, hasPendingChanges, saveBusy, handleSave])
 
+  // ── ナビゲーション スライドドラッグ ────────────────────────────────────────
+  const navGridRef = useRef(null)
+  const navDragging = useRef(false)
+
+  const getTabIndexFromPointer = useCallback((clientX) => {
+    if (!navGridRef.current) return -1
+    const { left, width } = navGridRef.current.getBoundingClientRect()
+    const ratio = (clientX - left) / width
+    return Math.min(TABS.length - 1, Math.max(0, Math.floor(ratio * TABS.length)))
+  }, [])
+
+  const handleNavPointerDown = useCallback((e) => {
+    navDragging.current = true
+    e.currentTarget.setPointerCapture(e.pointerId)
+    const idx = getTabIndexFromPointer(e.clientX)
+    if (idx >= 0) handleTabChange(TABS[idx].id)
+  }, [getTabIndexFromPointer, handleTabChange])
+
+  const handleNavPointerMove = useCallback((e) => {
+    if (!navDragging.current) return
+    const idx = getTabIndexFromPointer(e.clientX)
+    if (idx >= 0) handleTabChange(TABS[idx].id)
+  }, [getTabIndexFromPointer, handleTabChange])
+
+  const handleNavPointerUp = useCallback(() => {
+    navDragging.current = false
+  }, [])
+
   const handleRecalculate = useCallback(async () => {
     if (recalcBusy) return
     setRecalcBusy(true)
@@ -1553,7 +1581,14 @@ const [tab, setTab] = useState('timetable')
           boxShadow: '0 -1px 24px rgba(0,0,0,0.07)',
         }}
       >
-        <div className="relative grid grid-cols-5 px-1">
+        <div
+          ref={navGridRef}
+          className="relative grid grid-cols-5 px-1 touch-none select-none"
+          onPointerDown={handleNavPointerDown}
+          onPointerMove={handleNavPointerMove}
+          onPointerUp={handleNavPointerUp}
+          onPointerCancel={handleNavPointerUp}
+        >
           {/* ガラスカプセル — 1つだけ存在してスライド移動 */}
           <motion.span
             className="absolute inset-y-1 rounded-[13px] nav-glass-pill pointer-events-none"
@@ -1565,14 +1600,12 @@ const [tab, setTab] = useState('timetable')
             const Icon  = t.icon
             const active = tab === t.id
             return (
-              <motion.button
+              <div
                 key={t.id}
-                onClick={() => handleTabChange(t.id)}
-                whileTap={{ scale: 0.90 }}
-                transition={{ duration: 0.10 }}
+                role="tab"
                 aria-label={t.label}
                 aria-selected={active}
-                className="relative flex flex-col items-center justify-center py-2.5 gap-[3px] outline-none min-h-[44px]"
+                className="relative flex flex-col items-center justify-center py-2.5 gap-[3px] outline-none min-h-[44px] cursor-pointer"
               >
                 {/* アイコン */}
                 <span
@@ -1596,7 +1629,7 @@ const [tab, setTab] = useState('timetable')
                 >
                   {t.label}
                 </span>
-              </motion.button>
+              </div>
             )
           })}
         </div>
