@@ -6,6 +6,13 @@
 * {
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+input, textarea, [contenteditable] {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 html {

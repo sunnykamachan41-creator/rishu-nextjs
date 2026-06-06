@@ -954,6 +954,8 @@ const [tab, setTab] = useState('timetable')
   // ── ナビゲーション スライドドラッグ ────────────────────────────────────────
   const navGridRef = useRef(null)
   const navDragging = useRef(false)
+  // ドラッグ中のインジケーター位置（-1 = 非ドラッグ中、確定済みタブを使う）
+  const [dragIndex, setDragIndex] = useState(-1)
 
   const getTabIndexFromPointer = useCallback((clientX) => {
     if (!navGridRef.current) return -1
@@ -966,18 +968,22 @@ const [tab, setTab] = useState('timetable')
     navDragging.current = true
     e.currentTarget.setPointerCapture(e.pointerId)
     const idx = getTabIndexFromPointer(e.clientX)
-    if (idx >= 0) handleTabChange(TABS[idx].id)
-  }, [getTabIndexFromPointer, handleTabChange])
+    if (idx >= 0) setDragIndex(idx)
+  }, [getTabIndexFromPointer])
 
   const handleNavPointerMove = useCallback((e) => {
     if (!navDragging.current) return
     const idx = getTabIndexFromPointer(e.clientX)
-    if (idx >= 0) handleTabChange(TABS[idx].id)
-  }, [getTabIndexFromPointer, handleTabChange])
+    if (idx >= 0) setDragIndex(idx)
+  }, [getTabIndexFromPointer])
 
-  const handleNavPointerUp = useCallback(() => {
+  const handleNavPointerUp = useCallback((e) => {
+    if (!navDragging.current) return
     navDragging.current = false
-  }, [])
+    const idx = dragIndex >= 0 ? dragIndex : getTabIndexFromPointer(e.clientX)
+    setDragIndex(-1)
+    if (idx >= 0) handleTabChange(TABS[idx].id)
+  }, [dragIndex, getTabIndexFromPointer, handleTabChange])
 
   const handleRecalculate = useCallback(async () => {
     if (recalcBusy) return
@@ -1593,18 +1599,18 @@ const [tab, setTab] = useState('timetable')
           <motion.span
             className="absolute inset-y-1 rounded-[13px] nav-glass-pill pointer-events-none"
             style={{ zIndex: 0, left: '4px', width: `calc((100% - 8px) / 5)` }}
-            animate={{ x: `calc(${TABS.findIndex(t => t.id === tab)} * 100%)` }}
+            animate={{ x: `calc(${dragIndex >= 0 ? dragIndex : TABS.findIndex(t => t.id === tab)} * 100%)` }}
             transition={{ type: 'spring', stiffness: 350, damping: 30 }}
           />
-          {TABS.map(t => {
-            const Icon  = t.icon
-            const active = tab === t.id
+          {TABS.map((t, i) => {
+            const Icon = t.icon
+            const active = dragIndex >= 0 ? dragIndex === i : tab === t.id
             return (
               <div
                 key={t.id}
                 role="tab"
                 aria-label={t.label}
-                aria-selected={active}
+                aria-selected={tab === t.id}
                 className="relative flex flex-col items-center justify-center py-2.5 gap-[3px] outline-none min-h-[44px] cursor-pointer"
               >
                 {/* アイコン */}
