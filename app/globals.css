@@ -32,6 +32,29 @@ body {
   overflow: hidden;
 }
 
+/* ── Liquid Glass ナビゲーション ──────────────────────────────────────────── */
+
+/* ナビ背景（CSS変数でダーク対応） */
+:root { --nav-bg: rgba(255, 255, 255, 0.78); }
+.dark  { --nav-bg: rgba(26,  29,  39,  0.82); }
+
+/* ガラスカプセル（選択中タブ） */
+.nav-glass-pill {
+  background:  rgba(255, 255, 255, 0.80);
+  box-shadow:  0 2px 14px rgba(0, 0, 0, 0.10),
+               inset 0 1px 0 rgba(255, 255, 255, 0.90);
+  border:      1px solid rgba(255, 255, 255, 0.70);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.dark .nav-glass-pill {
+  background:  rgba(255, 255, 255, 0.10);
+  box-shadow:  0 2px 14px rgba(0, 0, 0, 0.35),
+               inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  border:      1px solid rgba(255, 255, 255, 0.14);
+}
+
 /* ── デザイントークン ──────────────────────────────────────────────────────── */
 :root {
   --c-bg-app:     #f1f5f9;

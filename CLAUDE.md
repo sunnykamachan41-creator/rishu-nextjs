@@ -24,7 +24,7 @@ YORAはそれを補う目的で作られた非公式ツール。
 - **卒業要件**：現在の履修で卒業・免許取得に何単位足りないかリアルタイム確認
 - **ダッシュボード**：単位取得の進捗サマリー
 - **空き部屋検索**：今空いている教室を探せる
-- **カタログ**：開講授業の一覧・検索
+- **カタログ**：開講授業の一覧・検索（履修登録はここからではなく時間割から）
 
 ### 重要な前提
 - **非公式**：大学が作っているわけではない。学生・開発者が作った草の根ツール
@@ -73,13 +73,14 @@ LINEやInstagramのブラウザはPWAインストールに非対応。
 
 ### データ構造（スプレッドシート）
 ```
-users           : email | student_id | department_id | curriculum_year
-enrollment      : student_id | class_id | course_id | status | year | semester | academic_year | is_temporary | memo | id
-course          : class_id | academic_year | 曜日 | 時限 | classroom | instructor | 単位数 ...
-students_summary: student_id | department_id | カテゴリ別単位数...
-GRADUATION_RESULT: 卒業要件判定結果
-leave_periods   : student_id | leave_start | leave_end
-recognized_courses: 単位認定情報
+users              : email | student_id | department_id | curriculum_year
+enrollment         : student_id | class_id | course_id | status | year | semester | academic_year | is_temporary | memo | id
+course             : class_id | academic_year | normalized_time(例:MON_3) | classroom | instructor | 単位数 ...
+students_summary   : student_id | department_id | カテゴリ別単位数...
+GRADUATION_RESULT  : 卒業要件判定結果
+leave_periods      : student_id | leave_start | leave_end
+recognized_courses : student_id | course_id | academic_year | recognized_type | recognized_note | created_at
+progress_auto      : student_id | class_id | course_id | ... | final_category | status（集計中間テーブル）
 ```
 
 ---
@@ -115,11 +116,6 @@ recognized_courses: 単位認定情報
 - ただしメッセージ系（お知らせ、卒業メッセージ等）は使ってよい
 - 「もちろん無料です ☀️」など感情を伝えたい場面では使う
 
-### アニメーション
-- `active:scale-[0.98]` や `active:scale-95` で押した感を出す
-- `transition-all` を多用
-- ボトムシートは slide-up/slide-down アニメーション
-
 ---
 
 ## 5. アーキテクチャの思想
@@ -141,6 +137,10 @@ recognized_courses: 単位認定情報
 - enrollment 変更後は `mutate()` でキャッシュ更新
 - `revalidateOnFocus: false` が多い（授業中に使うので画面切り替えで再取得しない）
 
+### 単位集計の二層構造
+1. **クライアント集計**（`useCreditSummary`）：`selectedIds` + `recognized_courses` からリアルタイム計算。Dashboard・学年別表示に使用
+2. **サーバー集計**（`progress_auto` → `students_summary`）：`updateProgressAuto` で計算・保存。卒業要件タブに使用。`/api/recalculate` で手動更新可能
+
 ---
 
 ## 6. 機能別思想
@@ -154,20 +154,24 @@ recognized_courses: 単位認定情報
 - `localStorage` の `rishu_demo_mode = '1'` で管理（sessionStorageではない。一度デモを選んだら次回も続きから）
 - ログイン完了時にフラグを自動クリア
 
-### シェア機能（リード獲得）
-**思想：「ユーザーがSNSでシェアすることで自然に広まる」**
+### カタログ（重要な制約）
+**カタログは閲覧・検索のみ。履修登録はできない。**
+時間割タブから授業を追加する。この原則を変えてはいけない。
 
-- ProfileDrawer 内の ShareSection（ログイン済みユーザー）
-- デモモードのヘッダー右ボタン（未ログインユーザーも共有できる = リード獲得）
-- Web Share API でモバイルはネイティブシート → LINE/Instagramへ直接シェア可能
+### 単位認定（recognized_courses）
+- `recognized_courses` シートに `course_id` で管理（class_id なし）
+- クライアント集計：`useCreditSummary` の `recognizedCourses` パラメータで加算
+- サーバー集計：`updateProgressAuto` の Route B で COMPLETED として `progress_auto` に追加
+- **Route B のスキップ条件は「COMPLETED の enrollment がある場合のみ」**
+  - AUDIT / FAILED / IN_PROGRESS は単位に含まれないためスキップしない
+- 単位認定済みの授業を聴講(AUDIT)しても COMPLETED ステータスは上書きされない（`upsertEnrollment` でガード済み）
+- 出席ベース統計（ヒートマップ・教室・学期タイプ等）には含めない
 
-### PWAインストール促進
-**思想：「スマホアプリとして使ってほしい。ブラウザで使うのは体験が落ちる」**
-
-- ログイン後・オンボーディング後に一度だけ表示
-- デスクトップには表示しない
-- アプリ内ブラウザ（LINE/Instagram等）を検出して「Safariで開いてください」を丁寧に案内
-- iOS Chrome / Firefox も Safari 誘導
+### 聴講・再履修の状態遷移
+- COMPLETED または FAILED の履歴がある授業 → 追加時に ReEnrollModal が出現
+- **単位認定済みの course_id** も同様に ReEnrollModal を表示（`shouldShowReEnrollModal` の第3引数）
+- AUDIT → 単位なし、参加のみ
+- RE_ENROLL → FAILED 歴が必要
 
 ### 年度更新・仮登録
 **思想：「来年度の授業を今年度中に仮登録できる。年度が変わったら確定する」**
@@ -175,148 +179,58 @@ recognized_courses: 単位認定情報
 - `is_temporary = true` の enrollment は仮登録
 - `latestCourseYear` が上がると移行モーダルが表示される
 - ユーザーが確定 or 取り消しを選ぶ
+- **入学年度変更は全履修データをリセットする**（ユーザーへ警告必須）
 
 ### セキュリティ（`bootstrapUserIfNeeded`）
 **重大な教訓：APIエラー時に `.catch(() => [])` でシートを空配列と誤認し、新ユーザーを student_001 として上書きするバグがあった。修正済み。**
 
 - APIエラー時は例外を投げて中断（絶対にシートに書かない）
 - student_id の採番時はダブルチェック（二重登録防止）
-- student_id 競合時は再採番
 
 ---
 
-## 7. YORA ARCHIVE（卒業モード）— 開発中
+## 7. YORA ARCHIVE — YORAの集大成
 
-### 思想・コンセプト
+### 思想・位置づけ
 **「YORAはただの管理ツールじゃない。4年間の学びの相棒だった。卒業するときに、その軌跡を一緒に振り返ろう」**
 
+YORA ARCHIVE は単なる機能追加ではなく、**YORAというプロダクトの集大成**。
 Spotify Wrapped のように、4年間のデータをストーリー形式で振り返る体験。
-数字の羅列ではなく、感情に訴えるデザイン。
-「YORAと一緒に4年間歩んできた」という感覚を最後に演出する。
-
 SNSでシェアしてもらうことで、YORAの宣伝にもなる（ユーザーが広める構造）。
 
-### 起動タイミング
-5年生になったタイミング（年度更新時）に「卒業しましたか？」を確認して起動。
+### 起動フロー
+1. `latestCourseYear - enrollmentYear >= 4` で5年生判定
+2. 年度更新時に「卒業しましたか？」ダイアログ表示
+3. Yes → `yora_archive_unlocked_${studentId}` を localStorage に保存 → ARCHIVE 起動
+4. ProfileDrawer から何度でも再視聴可能（毎回 fresh fetch）
+5. 運命の先生・メッセージは `yora_fated_${studentId}` にキャッシュして固定
+
+### データ方針
+| 統計 | 対象 | 除外 |
+|---|---|---|
+| 取得単位数・取得率（分子） | COMPLETED のみ | — |
+| 総履修授業数・取得率（分母） | FAILED含む全部（非仮登録） | 単位認定 |
+| ヒートマップ・教室・学期・学年 | FAILED含む全部 | **単位認定**（出席していないため） |
+| 運命の人 | FAILED含む全部 | **単位認定** |
+
+### normalized_time のフォーマット
+course シートの時間情報は `MON_3`（英語略称_時限）形式。
+複数コマの場合は `MON_3 WED_1` のように空白区切り。
 
 ### デザイン思想
-- **証書感・高級感**：大学の卒業証書をモチーフにした美しいデザイン
-- **クリーム × ネイビー × ゴールド**：落ち着きと格調
-- **絵文字は使わない**：高級感を守る（運命の人のメッセージ内は例外）
-- **YORAロゴを常に視認できる位置に**：「YORAと一緒に」という感覚を強化
-  - 各スライド下部に大きめのYORAロゴ（46px）をドーンと配置
-  - 総括カード（保存用）の中にもYORAロゴを入れる（保存・シェアした先でも見える）
+- クリーム × ネイビー × ゴールドの証書スタイル
+- 絵文字なし（高級感を守る）
+- YORAロゴを常に表示（「YORAと一緒に」という感覚を強化）
+- html2canvas でスライド⑨を画像保存 + Web Share API でSNS共有
 
-### スライド構成（9枚）
-
-| # | タイトル | 内容 |
-|---|---|---|
-| ① | イントロ | 証書スタイル。アカウント名+殿、学科、入学年度、年度範囲 |
-| ② | 4年間の履修記録 | 総授業数・総取得単位数（大きな数字） |
-| ③ | 単位取得率 | 円グラフ。X授業のうちY授業取得（授業数ベース。フル単時は特別メッセージ） |
-| ④ | 最も過ごした時間 | 曜日×時限ヒートマップ。5限まで・水曜3限まで |
-| ⑤ | 最も多く通った教室 | 教室名・通った回数・授業数×100分→日数換算 |
-| ⑥ | 最も忙しかった学年 | 学年別単位数の横棒グラフ |
-| ⑦ | あなたの学期タイプ | 春合計 vs 秋合計。春多→「春に燃えるタイプ」、秋多→「秋に深まるタイプ」 |
-| ⑧ | 運命の人 | ランダム教員 + メッセージ。単独担当の授業を優先 |
-| ⑨ | 総括カード（保存用） | 全データ + YORAロゴ + 画像保存ボタン |
-
-### データソース
-```
-classroom フォーマット : N203 → N棟（先頭英字）+ 203教室（数字）
-instructor 列名       : instructor（複数時は「・」「、」等で区切り）
-1授業の時間          : 100分（固定仕様）
-時限制約             : 5限まで。水曜は3限まで
-```
-
-### 重要な計算
-- **過ごした時間**：`通い回数 × 100分` → 日数・時間に換算
-  - 128回 × 100分 = 12,800分 = 8日と21時間
-- **単位取得率**：授業数ベース（単位数ではない）
-  - `取得した授業数 / 履修した授業数 × 100`
-- **学期タイプ**：春学期合計単位 vs 秋学期合計単位
-
-### 学期タイプのメッセージ
-- **春型**：「桜の季節が来ると自然と気持ちが高まり、学びへのエンジンがかかるタイプ。春の陽気とともに、あなたの4年間は確かに動き出していました。」
-- **秋型**：「澄んだ秋空の下で本領を発揮するタイプ。涼しさとともに集中力が高まり、あなたの学びは秋に深まっていました。」
-
-### 「運命の人」のメッセージ（181件）
-`lib/graduationMessages.js` に保存予定（未作成）。
-`graduation_message.txt`（C:\Users\Owner\Downloads\）から取り込む。
-面白くて少しズレた教員目線のメッセージ集。ランダム選択。
-
-### 保存機能
-- `#save-target` div（スライド⑨の画像化エリア）を `html2canvas` でキャプチャ
-- 保存ボタン・ドットは save-target の外に置く（画像に含めない）
-- `html2canvas` は未インストール → `npm install html2canvas` が必要
-
-### デザインカンプ
-- `public/graduation-preview.html` に完成済みHTMLカンプ（9スライド全部）
-- `app/api/graduation-preview/route.js` でブラウザから確認可能（開発用）
-- `http://localhost:3000/api/graduation-preview` でプレビュー
+### html2canvas の注意点
+- `transparent` を含む gradient は 0×0 canvas を生成してクラッシュする
+- 保存対象（save-target）内では `Ornament` の代わりに `SolidOrnament`（グラデーションなし）を使う
+- `FadeUp`（transform アニメーション）も save-target 内では使わない
 
 ---
 
-## 8. このセッションで完了した作業
-
-### デモモード（ゲストモード）実装
-- 「ログインせずに使う」ボタン追加
-- `localStorage` の `rishu_demo_mode` で状態管理
-- デモ用のSWR（`/api/catalog` を公開化）
-- DemoBanner・GuestLockOverlay・LoginSheetコンポーネント
-
-### セキュリティ修正（重大）
-- `bootstrapUserIfNeeded` のAPIエラー時上書きバグを修正
-- `student_id` 採番の競合対策
-
-### シェア機能
-- `components/drawer/sections/ShareSection.jsx` 新規作成・ProfileDrawerに追加
-- デモモードヘッダーにもシェアボタン追加
-
-### PWAプロンプト改善
-- アプリ内ブラウザ（LINE/Instagram等）の検出と丁寧な手順表示
-- デスクトップでは非表示
-
-### 入学年度選択肢の修正
-- 2023〜MAX(academic_year) に限定
-- `maxAcademicYear` を page.jsx から EnrollmentYearModal まで伝播
-
-### YORA ARCHIVEのデザインカンプ完成
-- 9スライドのHTMLプレビュー完成
-- `public/graduation-preview.html`
-
----
-
-## 9. 次のセッションでやること（優先順）
-
-1. **`lib/graduationMessages.js` 作成**
-   ```js
-   // graduation_message.txt（Downloads）の181件を配列に
-   export const GRADUATION_MESSAGES = [
-     "卒業おめでとう😊😊😊。社会人になるそうですね...",
-     // ...181件
-   ]
-   ```
-
-2. **`app/api/graduation-story/route.js` 作成**
-   - enrollment × course JOIN で全統計を計算
-   - 1レスポンスで全9スライド分のデータを返す
-
-3. **Reactコンポーネント化**
-   - `app/graduation/page.jsx` または既存ページ上のモーダル
-   - `public/graduation-preview.html` のデザインを忠実にReact化
-
-4. **html2canvas 導入**
-   - `npm install html2canvas`
-   - 総括カードの保存ボタン実装
-
-5. **5年生判定・起動フロー**
-   - 年度更新モーダルに「卒業しましたか？」を追加
-   - Yes → YORA ARCHIVE 起動
-
----
-
-## 10. 重要な注意事項（触ってはいけないこと）
+## 8. 重要な注意事項（触ってはいけないこと）
 
 - **`bootstrapUserIfNeeded` の `.catch(() => [])` は絶対に復活させない**（既存データ上書きバグの原因）
 - **`latestCourseYear` が「現在の年度」**。`new Date().getFullYear()` を使わない
@@ -324,10 +238,12 @@ instructor 列名       : instructor（複数時は「・」「、」等で区�
 - **1授業 = 100分**（固定。変更不可）
 - **単位取得率は授業数ベース**（単位数の合計ではない）
 - **デモモードは localStorage**（sessionStorage に変えないこと。意図的にタブを閉じても続く仕様）
+- **カタログからの履修登録は不可**（閲覧専用）
+- **Route B の認定スキップは COMPLETED のみ**（AUDIT/FAILED でスキップしない）
 
 ---
 
-## 11. ファイル構成（主要）
+## 9. ファイル構成（主要）
 
 ```
 app/
@@ -335,25 +251,30 @@ app/
   api/
     catalog/route.js               # 公開（認証不要）
     data/route.js                  # 全データ一括取得
+    enrollment/route.js            # 履修登録系
+    graduation/ui/route.js         # 卒業要件UI用データ
+    graduation-story/route.js      # YORA ARCHIVE 統計API
+    recalculate/route.js           # 卒業要件再計算
+    recognized-courses/route.js    # 単位認定CRUD
     users/route.ts                 # ユーザー情報
-    enrollment/...                 # 履修登録系
-    graduation-preview/route.js    # プレビューHTML配信（開発用）
-    graduation-story/route.js      # ★未作成
 components/
+  graduation/
+    GraduationArchiveModal.jsx     # ARCHIVEメインモーダル
+    SlideLayout.jsx                # 共通コンポーネント（Slide, Card, FadeUp等）
+    slides/                        # 9枚の各スライド
+    hooks/                         # useSlotCount, useSlideVisible
   drawer/
     ProfileDrawer.jsx
     sections/
-      ShareSection.jsx             # ★新規作成済み
-      AffiliationSection.jsx
-      AuthSection.jsx
-      SupportSection.jsx
-    modals/
-      EnrollmentYearModal.jsx      # ★修正済み（2023〜max）
-  PwaInstallPrompt.jsx             # ★修正済み（アプリ内ブラウザ対応）
+      HelpSection.jsx              # 使い方ガイド（右スライドパネル）
+      DataSection.jsx              # 再計算ボタン含む
+      ShareSection.jsx
 lib/
-  sheets.js                        # ★bootstrapUserIfNeeded 修正済み
-  graduationMessages.js            # ★未作成
+  sheets.js                        # Google Sheets 全操作（bootstrapUserIfNeeded修正済み）
+  transform.ts                     # データ正規化
+  useCreditSummary.js              # クライアント単位集計（recognized_courses 対応済み）
+  enrollmentStatus.ts              # 状態遷移ルール（recognized対応済み）
+  graduationMessages.js            # ARCHIVE用メッセージ181件
 public/
-  graduation-preview.html          # ★完成済みデザインカンプ
-  icons/icon-192.png               # YORAロゴ（ARCHIVEで使用）
+  graduation-preview.html          # ARCHIVEデザインカンプ（HTMLスタティック版）
 ```
