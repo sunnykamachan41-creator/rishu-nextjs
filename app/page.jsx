@@ -1554,6 +1554,13 @@ const [tab, setTab] = useState('timetable')
         }}
       >
         <div className="relative grid grid-cols-5 px-1">
+          {/* ガラスカプセル — 1つだけ存在してスライド移動 */}
+          <motion.span
+            className="absolute inset-y-1 rounded-[13px] nav-glass-pill pointer-events-none"
+            style={{ zIndex: 0, width: `calc((100% - 8px) / 5)` }}
+            animate={{ x: `calc(${TABS.findIndex(t => t.id === tab)} * 100%)` }}
+            transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+          />
           {TABS.map(t => {
             const Icon  = t.icon
             const active = tab === t.id
@@ -1567,19 +1574,6 @@ const [tab, setTab] = useState('timetable')
                 aria-selected={active}
                 className="relative flex flex-col items-center justify-center py-2.5 gap-[3px] outline-none min-h-[44px]"
               >
-                {/* Liquid Glass カプセル — layoutId でタブ間を滑らかに移動 */}
-                {active && (
-                  <motion.span
-                    layoutId="nav-indicator"
-                    className="absolute inset-x-0.5 inset-y-1 rounded-[13px] nav-glass-pill"
-                    style={{ zIndex: 0 }}
-                    transition={{
-                      type: 'spring',
-                      stiffness: 350,
-                      damping: 30,
-                    }}
-                  />
-                )}
                 {/* アイコン */}
                 <span
                   className={`relative transition-colors duration-150
