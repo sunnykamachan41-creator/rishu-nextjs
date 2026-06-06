@@ -1592,7 +1592,7 @@ const [tab, setTab] = useState('timetable')
           {/* ガラスカプセル — 1つだけ存在してスライド移動 */}
           <motion.span
             className="absolute inset-y-1 rounded-[13px] nav-glass-pill pointer-events-none"
-            style={{ zIndex: 0, width: `calc((100% - 8px) / 5)` }}
+            style={{ zIndex: 0, left: '4px', width: `calc((100% - 8px) / 5)` }}
             animate={{ x: `calc(${TABS.findIndex(t => t.id === tab)} * 100%)` }}
             transition={{ type: 'spring', stiffness: 350, damping: 30 }}
           />
