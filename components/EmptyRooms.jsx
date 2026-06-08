@@ -1,5 +1,6 @@
 'use client'
 import { useState, useMemo } from 'react'
+import { loadPeriodConfig } from '@/lib/periodConfig'
 
 // ── 教室マスタ ────────────────────────────────────────────────────────────────
 
@@ -97,24 +98,55 @@ function freeStyle(free) {
   return               { bg: 'bg-green-200 dark:bg-green-500/30', border: 'border-green-300 dark:border-green-500/40', text: 'text-green-900 dark:text-green-200', label: `${free}時間空き`, dot: 'bg-green-600 dark:bg-green-400' }
 }
 
+// ── スマートデフォルト ────────────────────────────────────────────────────────
+
+/** HH:MM 文字列 → 分 */
+function toMin(hhmm) {
+  const [h, m] = hhmm.split(':').map(Number)
+  return h * 60 + m
+}
+
+/**
+ * 現在時刻・曜日から { sem, day, period } を自動判定する。
+ * - 学期  : month 4〜9 = spring / 10〜3 = fall
+ * - 曜日  : 土日は月曜
+ * - 時限  : loadPeriodConfig に準拠。授業外は「次の時限」、全終了後は1限
+ */
+function getSmartDefaults() {
+  const now   = new Date()
+  const month = now.getMonth() + 1
+  const dow   = now.getDay()   // 0=日, 6=土
+
+  const sem          = (month >= 4 && month <= 9) ? 'spring' : 'fall'
+  const academicYear = month >= 4 ? now.getFullYear() : now.getFullYear() - 1
+
+  // 土日 → 月曜、平日 → 当日
+  const day = (dow === 0 || dow === 6) ? 'MON' : (DAYS[dow - 1] ?? 'MON')
+
+  // periodConfig から時限を判定
+  const periods = loadPeriodConfig(academicYear, sem)
+  const nowMin  = now.getHours() * 60 + now.getMinutes()
+
+  // 授業中？
+  const current = periods.find(p => nowMin >= toMin(p.start) && nowMin <= toMin(p.end))
+  if (current) return { sem, day, period: current.period }
+
+  // 次の授業？（昼休みなど授業間）
+  const next = periods.find(p => toMin(p.start) > nowMin)
+  if (next) return { sem, day, period: next.period }
+
+  // 全授業終了後 → 1限
+  return { sem, day, period: 1 }
+}
+
 // ── EmptyRooms ────────────────────────────────────────────────────────────────
 
 export default function EmptyRooms({ courses = [] }) {
-  // デフォルト学期：現在の月から推定（4〜9月=春、10〜3月=秋）
-  const defaultSem = useMemo(() => {
-    const m = new Date().getMonth() + 1  // 1-12
-    return (m >= 4 && m <= 9) ? 'spring' : 'fall'
-  }, [])
+  const defaults = useMemo(() => getSmartDefaults(), [])
 
-  // デフォルト曜日：今日（月〜金、それ以外は月）
-  const todayDay = useMemo(() => {
-    const d = new Date().getDay()
-    return DAYS[d - 1] ?? 'MON'
-  }, [])
-
-  const [selectedSem,    setSelectedSem]    = useState(defaultSem)
-  const [selectedDay,    setSelectedDay]    = useState(todayDay)
-  const [selectedPeriod, setSelectedPeriod] = useState(1)
+  const [selectedSem,    setSelectedSem]    = useState(defaults.sem)
+  const [selectedDay,    setSelectedDay]    = useState(defaults.day)
+  const [selectedPeriod, setSelectedPeriod] = useState(defaults.period)
   const [onlyFree,       setOnlyFree]       = useState(false)
   const [only2h,         setOnly2h]         = useState(false)
   const [detailRoom,     setDetailRoom]     = useState(null)

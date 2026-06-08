@@ -102,6 +102,23 @@ const [tab, setTab] = useState('timetable')
   // { classId, courseId, course } | null
   const [reEnrollModal, setReEnrollModal] = useState(null)
 
+  // ── 学期切替バナー ────────────────────────────────────────────────────────
+  const [semBanner, setSemBanner] = useState(() => {
+    if (typeof window === 'undefined') return false
+    const month = new Date().getMonth() + 1
+    if (month !== 4 && month !== 10) return false          // 4月・10月のみ
+    const now  = new Date()
+    const year = month >= 4 ? now.getFullYear() : now.getFullYear() - 1
+    const sem  = month === 10 ? 'fall' : 'spring'
+    const doneKey      = `semester_banner_done_${year}_${sem}`
+    const dismissedKey = `semester_banner_dismissed_${year}_${sem}`
+    if (localStorage.getItem(doneKey)) return false        // 入力済み → 永久非表示
+    const dismissedDate = localStorage.getItem(dismissedKey)
+    const today = now.toISOString().slice(0, 10)
+    if (dismissedDate === today) return false              // 今日はもう見た
+    return { year, sem }
+  })
+
   // ── ユーザー専攻（オンボーディングで確定、全集計ロジックの前提情報）──────────
   // 初期値は必ず '' とし、サーバー（users シート）の値を正として useEffect で反映する。
   // localStorage は使用しない（student_id ごとに異なる値が混在するため）。
@@ -985,6 +1002,24 @@ const [tab, setTab] = useState('timetable')
     if (idx >= 0) handleTabChange(TABS[idx].id)
   }, [dragIndex, getTabIndexFromPointer, handleTabChange])
 
+  // 学期バナー：「入力する」→ 時間割タブへ移動＋完了フラグ
+  const handleSemBannerEnter = useCallback(() => {
+    if (!semBanner) return
+    const { year, sem } = semBanner
+    localStorage.setItem(`semester_banner_done_${year}_${sem}`, 'true')
+    setSemBanner(false)
+    handleTabChange('timetable')
+  }, [semBanner, handleTabChange])
+
+  // 学期バナー：「あとで」→ 今日分だけ非表示
+  const handleSemBannerLater = useCallback(() => {
+    if (!semBanner) return
+    const { year, sem } = semBanner
+    const today = new Date().toISOString().slice(0, 10)
+    localStorage.setItem(`semester_banner_dismissed_${year}_${sem}`, today)
+    setSemBanner(false)
+  }, [semBanner])
+
   const handleRecalculate = useCallback(async () => {
     if (recalcBusy) return
     setRecalcBusy(true)
@@ -1399,33 +1434,45 @@ const [tab, setTab] = useState('timetable')
               </div>
             </div>
           ) : (
-            <TimetableV2
-              courses={courses}
-              selectedIds={selectedIds}
-              onToggleEnrollment={handleToggle}
-              termFilter={timetableTermFilter} onTermFilterChange={setTimetableTermFilter}
-              academicYear={academicYear}
-              selectedGrade={selectedGrade}
-              enrollmentYear={enrollmentYear}
-              maxGrade={maxGrade}
-              onGradeChange={handleGradeChange}
-              onAddGrade={handleAddGrade}
-              onDeleteGrade={handleDeleteGrade}
-              onEnrollmentYearChange={handleEnrollmentYearChange}
-              onEntriesChange={handleEntriesChange}
-              syncKey={entrySyncKey}
-              enrollment={data.enrollment}
-              enrollmentVersion={enrollmentVersion}
-              statusMap={statusMap}
-              onStatusChange={enrollmentVersion === 'new' ? handleStatusChange : null}
-              temporaryIds={temporaryIds}
-              studentId={studentId}
-              department={department}
-              onBulkStatusDone={() => mutate()}
-              onMemoSave={handleMemoSave}
-              leaveSemesters={leaveSemesters}
-              displayGrade={displayGrade}
-            />
+            <div className="h-full flex flex-col">
+              {/* 学期切替バナー */}
+              {semBanner && (
+                <SemesterBanner
+                  sem={semBanner.sem}
+                  onEnter={handleSemBannerEnter}
+                  onLater={handleSemBannerLater}
+                />
+              )}
+              <div className="flex-1 min-h-0">
+                <TimetableV2
+                  courses={courses}
+                  selectedIds={selectedIds}
+                  onToggleEnrollment={handleToggle}
+                  termFilter={timetableTermFilter} onTermFilterChange={setTimetableTermFilter}
+                  academicYear={academicYear}
+                  selectedGrade={selectedGrade}
+                  enrollmentYear={enrollmentYear}
+                  maxGrade={maxGrade}
+                  onGradeChange={handleGradeChange}
+                  onAddGrade={handleAddGrade}
+                  onDeleteGrade={handleDeleteGrade}
+                  onEnrollmentYearChange={handleEnrollmentYearChange}
+                  onEntriesChange={handleEntriesChange}
+                  syncKey={entrySyncKey}
+                  enrollment={data.enrollment}
+                  enrollmentVersion={enrollmentVersion}
+                  statusMap={statusMap}
+                  onStatusChange={enrollmentVersion === 'new' ? handleStatusChange : null}
+                  temporaryIds={temporaryIds}
+                  studentId={studentId}
+                  department={department}
+                  onBulkStatusDone={() => mutate()}
+                  onMemoSave={handleMemoSave}
+                  leaveSemesters={leaveSemesters}
+                  displayGrade={displayGrade}
+                />
+              </div>
+            </div>
           )
         )}
         {/* カタログタブ: 常時マウント（タブ切替でもフィルタ・検索・年度状態を保持）
@@ -1729,6 +1776,40 @@ function DemoBanner({ message, onLogin }) {
                    px-3.5 py-1.5 rounded-full transition-colors"
       >
         ログイン
+      </button>
+    </div>
+  )
+}
+
+// ── SemesterBanner ────────────────────────────────────────────────────────────
+// 4月・10月に時間割タブ上部に表示する学期切替バナー
+
+function SemesterBanner({ sem, onEnter, onLater }) {
+  const isFall   = sem === 'fall'
+  const prevSem  = isFall ? '春学期' : '秋学期'
+  const newSem   = isFall ? '秋学期' : '春学期'
+  return (
+    <div className="flex-shrink-0 bg-emerald-50 dark:bg-emerald-500/10
+                    border-b border-emerald-100 dark:border-emerald-500/20
+                    px-4 py-2.5 flex items-center gap-3">
+      <span className="flex-1 text-xs font-medium text-emerald-800 dark:text-emerald-300 leading-snug">
+        {newSem}が始まりました。{prevSem}の履修結果を入力しましょう。
+      </span>
+      <button
+        onClick={onLater}
+        className="flex-shrink-0 text-xs font-semibold text-emerald-600 dark:text-emerald-400
+                   px-2.5 py-1.5 rounded-full transition-colors
+                   hover:bg-emerald-100 dark:hover:bg-emerald-500/20"
+      >
+        あとで
+      </button>
+      <button
+        onClick={onEnter}
+        className="flex-shrink-0 text-xs font-semibold text-white
+                   bg-emerald-500 hover:bg-emerald-600 active:scale-95
+                   px-3.5 py-1.5 rounded-full transition-colors"
+      >
+        入力する
       </button>
     </div>
   )
