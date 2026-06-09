@@ -22,8 +22,10 @@ function verifyDiscordSignature(
   const publicKey = process.env.DISCORD_PUBLIC_KEY
   if (!publicKey) return false
 
+  const msg = new TextEncoder().encode(timestamp + body)
+
   return nacl.sign.detached.verify(
-    new TextEncoder().encode(timestamp + body),
+    msg,
     Buffer.from(signature, 'hex'),
     Buffer.from(publicKey, 'hex')
   )
