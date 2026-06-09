@@ -20,11 +20,10 @@ function verifyDiscordSignature(
   body: string,
 ): boolean {
   const publicKey = process.env.DISCORD_PUBLIC_KEY
-
   if (!publicKey) return false
 
   return nacl.sign.detached.verify(
-    Buffer.from(timestamp + body),
+    new TextEncoder().encode(timestamp + body),
     Buffer.from(signature, 'hex'),
     Buffer.from(publicKey, 'hex')
   )
