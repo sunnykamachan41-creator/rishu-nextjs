@@ -55,12 +55,22 @@ export async function GET() {
         userDepartment,
         userCurriculumYear,
         leavePeriodRows,
+        users: userRows,
       },
       recognizedCourses,
     ] = await Promise.all([
       fetchAllSheets(studentId),
       fetchRecognizedCoursesForStudent(studentId),
     ])
+
+    // 同意フラグを users シートから取得
+    const myUserRow = (userRows ?? []).find(
+      r => normalizeId(String(r.student_id ?? '')) === normalizeId(studentId)
+    ) ?? {}
+    const consentStatus = {
+      terms_accepted:   String(myUserRow.terms_accepted   ?? '').toLowerCase() === 'true',
+      privacy_accepted: String(myUserRow.privacy_accepted ?? '').toLowerCase() === 'true',
+    }
 
     // 休学期間を学生ごとに解析して GradeSemester[] に変換する
     // normalizeId でヘッダー名の表記揺れ・全角半角差異を吸収する
@@ -137,6 +147,7 @@ export async function GET() {
       rawLeavePeriods,    // { leave_start, leave_end }[] — UI 編集用の生データ
       studentId,
       recognizedCourses:  recognizedCourses ?? [],
+      consentStatus,
     })
   } catch (err) {
     console.error('[GET /api/data]', err)

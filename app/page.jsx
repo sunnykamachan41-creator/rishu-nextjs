@@ -1,5 +1,6 @@
 'use client'
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import useSWR from 'swr'
 import { useSession, signIn } from 'next-auth/react'
@@ -101,6 +102,7 @@ const [tab, setTab] = useState('timetable')
   // 再履修・聴講モーダル
   // { classId, courseId, course } | null
   const [reEnrollModal, setReEnrollModal] = useState(null)
+
 
   // ── 学期切替バナー ────────────────────────────────────────────────────────
   const [semBanner, setSemBanner] = useState(() => {
@@ -387,6 +389,20 @@ const [tab, setTab] = useState('timetable')
     revalidateOnFocus: !hasPendingChanges,
     dedupingInterval:  5_000,
   })
+
+  // OAuth リダイレクト後にペンディングの同意をサーバーへ送信する
+  useEffect(() => {
+    if (sessionStatus !== 'authenticated') return
+    let pending = null
+    try { pending = JSON.parse(localStorage.getItem('yora_pending_consent') ?? 'null') } catch {}
+    if (!pending?.terms || !pending?.privacy) return
+    localStorage.removeItem('yora_pending_consent')
+    fetch('/api/users/consent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ terms_accepted: true, privacy_accepted: true }),
+    }).catch(() => {/* サイレント失敗 */})
+  }, [sessionStatus])
 
   // デモモード専用: 空き部屋タブ用の公開コースデータ（認証不要）
   const { data: guestCatalogData } = useSWR(
@@ -1130,43 +1146,7 @@ const [tab, setTab] = useState('timetable')
             </div>
 
             {/* ボタン群 */}
-            <div className="w-full flex flex-col items-center gap-3">
-              <p className="text-sm text-slate-500 dark:text-slate-400 text-center leading-relaxed">
-                Google アカウントでサインインして<br />履修情報を管理しましょう
-              </p>
-              <button
-                onClick={() => signIn('google')}
-                className="w-full flex items-center justify-center gap-3
-                           bg-white dark:bg-[#1a1d27] border border-slate-200 dark:border-white/[0.08]
-                           shadow-md dark:shadow-none rounded-2xl px-6 py-4
-                           text-sm font-semibold text-slate-700 dark:text-slate-200
-                           hover:bg-slate-50 dark:hover:bg-white/[0.06] active:scale-[0.98] transition-all"
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                </svg>
-                Google でログイン
-              </button>
-
-              {/* ─── ログインせずに使う ─── */}
-              <div className="relative w-full flex items-center gap-3 my-1">
-                <div className="flex-1 h-px bg-slate-100 dark:bg-white/[0.06]" />
-                <span className="text-[11px] text-slate-300 dark:text-slate-600 flex-shrink-0">または</span>
-                <div className="flex-1 h-px bg-slate-100 dark:bg-white/[0.06]" />
-              </div>
-              <button
-                onClick={handleEnterDemo}
-                className="w-full text-sm font-medium text-slate-500 dark:text-slate-400 py-3 px-4
-                           rounded-2xl border border-slate-100 dark:border-white/[0.06]
-                           hover:bg-slate-50 dark:hover:bg-white/[0.04]
-                           active:scale-[0.98] transition-all"
-              >
-                ログインせずに使う
-              </button>
-            </div>
+            <LoginConsentBlock onEnterDemo={handleEnterDemo} />
           </div>
 
           {/* 公式PV */}
@@ -1527,6 +1507,17 @@ const [tab, setTab] = useState('timetable')
         </div>
         {tab === 'requirements' && (
           <div className="relative h-full flex flex-col">
+            {/* 非公式・参考情報バナー */}
+            <div className="flex-shrink-0 flex items-center gap-2 px-4 py-1.5
+                            bg-amber-50 dark:bg-amber-500/[0.08]
+                            border-b border-amber-100 dark:border-amber-500/20">
+              <svg viewBox="0 0 16 16" className="w-3 h-3 flex-shrink-0 text-amber-500" fill="currentColor">
+                <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm.75 10.5h-1.5v-1.5h1.5v1.5zm0-3h-1.5V4h1.5v4.5z"/>
+              </svg>
+              <span className="text-[11px] text-amber-700 dark:text-amber-400 leading-snug">
+                判定結果は参考情報です。最終確認は必ず大学の公式システムで行ってください。
+              </span>
+            </div>
             {isDemoMode ? (
               <GuestLockOverlay
                 title="卒業要件を確認しよう"
@@ -1688,6 +1679,7 @@ const [tab, setTab] = useState('timetable')
         </div>
       </nav>
 
+
       {/* ── PWA インストール案内（初回のみ） ─────────────────────────────────────── */}
       {showPwaPrompt && (
         <PwaInstallPrompt
@@ -1819,6 +1811,17 @@ function SemesterBanner({ sem, onEnter, onLater }) {
 // ゲストがログインするためのボトムシート
 
 function LoginSheet({ onClose }) {
+  const router = useRouter()
+  const [termsOk,   setTermsOk]   = useState(false)
+  const [privacyOk, setPrivacyOk] = useState(false)
+  const canLogin = termsOk && privacyOk
+
+  const handleGoogleLogin = () => {
+    if (!canLogin) return
+    try { localStorage.setItem('yora_pending_consent', JSON.stringify({ terms: true, privacy: true, ts: Date.now() })) } catch {}
+    signIn('google')
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex flex-col justify-end"
@@ -1869,18 +1872,62 @@ function LoginSheet({ onClose }) {
             <p className="text-xs font-medium text-indigo-400 dark:text-indigo-500">
               もちろん無料です ☀️
             </p>
+
+            {/* 利用規約・PP 同意チェックボックス */}
+            <div className="w-full space-y-2.5 py-1">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setTermsOk(v => !v)}
+                  className={`w-6 h-6 flex-shrink-0 rounded-md border-2 flex items-center justify-center transition-colors
+                    ${termsOk ? 'bg-indigo-500 border-indigo-500' : 'border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800'}`}
+                >
+                  {termsOk && (
+                    <svg viewBox="0 0 12 10" className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M1 5l3.5 3.5L11 1"/>
+                    </svg>
+                  )}
+                </button>
+                <span className="text-[13px] text-gray-700 dark:text-slate-300 leading-snug">
+                  <button onClick={() => router.push('/terms')}
+                    className="text-indigo-600 dark:text-indigo-400 underline font-medium">
+                    利用規約
+                  </button>
+                  に同意する
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setPrivacyOk(v => !v)}
+                  className={`w-6 h-6 flex-shrink-0 rounded-md border-2 flex items-center justify-center transition-colors
+                    ${privacyOk ? 'bg-indigo-500 border-indigo-500' : 'border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800'}`}
+                >
+                  {privacyOk && (
+                    <svg viewBox="0 0 12 10" className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M1 5l3.5 3.5L11 1"/>
+                    </svg>
+                  )}
+                </button>
+                <span className="text-[13px] text-gray-700 dark:text-slate-300 leading-snug">
+                  <button onClick={() => router.push('/privacy')}
+                    className="text-indigo-600 dark:text-indigo-400 underline font-medium">
+                    プライバシーポリシー
+                  </button>
+                  に同意する
+                </span>
+              </div>
+            </div>
+
             <button
-              onClick={() => signIn('google')}
-              className="w-full flex items-center justify-center gap-3
-                         bg-white dark:bg-[#1a1d27]
-                         border border-slate-200 dark:border-white/[0.08]
-                         shadow-md dark:shadow-none
+              onClick={handleGoogleLogin}
+              disabled={!canLogin}
+              className={`w-full flex items-center justify-center gap-3
                          rounded-2xl px-6 py-4
-                         text-sm font-semibold text-slate-700 dark:text-slate-200
-                         hover:bg-slate-50 dark:hover:bg-white/[0.06]
-                         active:scale-[0.98] transition-all"
+                         text-sm font-semibold transition-all
+                         ${canLogin
+                           ? 'bg-white dark:bg-[#1a1d27] border border-slate-200 dark:border-white/[0.08] shadow-md dark:shadow-none text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/[0.06] active:scale-[0.98]'
+                           : 'bg-gray-100 dark:bg-white/[0.04] border border-gray-200 dark:border-white/[0.05] text-gray-300 dark:text-slate-600 cursor-not-allowed'}`}
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" style={{ flexShrink: 0, opacity: canLogin ? 1 : 0.4 }}>
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                 <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
                 <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
@@ -2034,6 +2081,111 @@ function ProjectedToggle({ active, onToggle }) {
                       ${active ? 'translate-x-5' : 'translate-x-0'}`}
         />
       </button>
+    </div>
+  )
+}
+
+// ── LoginConsentBlock ────────────────────────────────────────────────────────
+// ログイン画面のボタン群（利用規約・PP 同意チェックボックス付き）
+
+function LoginConsentBlock({ onEnterDemo }) {
+  const router   = useRouter()
+  const [termsOk,   setTermsOk]   = useState(false)
+  const [privacyOk, setPrivacyOk] = useState(false)
+  const canLogin = termsOk && privacyOk
+
+  const handleGoogleLogin = () => {
+    if (!canLogin) return
+    try { localStorage.setItem('yora_pending_consent', JSON.stringify({ terms: true, privacy: true, ts: Date.now() })) } catch {}
+    signIn('google')
+  }
+
+  return (
+    <div className="w-full flex flex-col items-center gap-3">
+      <p className="text-sm text-slate-500 dark:text-slate-400 text-center leading-relaxed">
+        Google アカウントでサインインして<br />履修情報を管理しましょう
+      </p>
+
+      {/* 同意チェックボックス */}
+      <div className="w-full space-y-2.5 py-1">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setTermsOk(v => !v)}
+            className={`w-6 h-6 flex-shrink-0 rounded-md border-2 flex items-center justify-center transition-colors
+              ${termsOk ? 'bg-indigo-500 border-indigo-500' : 'border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800'}`}
+          >
+            {termsOk && (
+              <svg viewBox="0 0 12 10" className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M1 5l3.5 3.5L11 1"/>
+              </svg>
+            )}
+          </button>
+          <span className="text-[13px] text-gray-700 dark:text-slate-300 leading-snug">
+            <button onClick={() => router.push('/terms')}
+              className="text-indigo-600 dark:text-indigo-400 underline font-medium">
+              利用規約
+            </button>
+            に同意する
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setPrivacyOk(v => !v)}
+            className={`w-6 h-6 flex-shrink-0 rounded-md border-2 flex items-center justify-center transition-colors
+              ${privacyOk ? 'bg-indigo-500 border-indigo-500' : 'border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800'}`}
+          >
+            {privacyOk && (
+              <svg viewBox="0 0 12 10" className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M1 5l3.5 3.5L11 1"/>
+              </svg>
+            )}
+          </button>
+          <span className="text-[13px] text-gray-700 dark:text-slate-300 leading-snug">
+            <button onClick={() => router.push('/privacy')}
+              className="text-indigo-600 dark:text-indigo-400 underline font-medium">
+              プライバシーポリシー
+            </button>
+            に同意する
+          </span>
+        </div>
+      </div>
+
+      {/* Google でログイン */}
+      <button
+        onClick={handleGoogleLogin}
+        disabled={!canLogin}
+        className={`w-full flex items-center justify-center gap-3
+                   rounded-2xl px-6 py-4 text-sm font-semibold transition-all
+                   ${canLogin
+                     ? 'bg-white dark:bg-[#1a1d27] border border-slate-200 dark:border-white/[0.08] shadow-md dark:shadow-none text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/[0.06] active:scale-[0.98]'
+                     : 'bg-gray-100 dark:bg-white/[0.04] border border-gray-200 dark:border-white/[0.05] text-gray-300 dark:text-slate-600 cursor-not-allowed'}`}
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" style={{ flexShrink: 0, opacity: canLogin ? 1 : 0.4 }}>
+          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+        </svg>
+        Google でログイン
+      </button>
+
+      {/* ─── ログインせずに使う ─── */}
+      <div className="relative w-full flex items-center gap-3 my-1">
+        <div className="flex-1 h-px bg-slate-100 dark:bg-white/[0.06]" />
+        <span className="text-[11px] text-slate-300 dark:text-slate-600 flex-shrink-0">または</span>
+        <div className="flex-1 h-px bg-slate-100 dark:bg-white/[0.06]" />
+      </div>
+      {onEnterDemo && (
+        <button
+          onClick={onEnterDemo}
+          className="w-full text-sm font-medium text-slate-500 dark:text-slate-400 py-3 px-4
+                     rounded-2xl border border-slate-100 dark:border-white/[0.06]
+                     hover:bg-slate-50 dark:hover:bg-white/[0.04]
+                     active:scale-[0.98] transition-all"
+        >
+          ログインせずに使う
+        </button>
+      )}
     </div>
   )
 }

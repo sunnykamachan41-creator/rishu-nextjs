@@ -10,6 +10,7 @@ import SupportSection       from './sections/SupportSection'
 import ShareSection         from './sections/ShareSection'
 import AuthSection          from './sections/AuthSection'
 import HelpSection          from './sections/HelpSection'
+import LegalSection         from './sections/LegalSection'
 
 /**
  * 学生専用コントロールセンター — 左からスライドするDrawer
@@ -156,6 +157,7 @@ export default function ProfileDrawer({
             <HelpSection />
             <SupportSection onClose={onClose} />
             <ShareSection />
+            <LegalSection onClose={onClose} />
 
             {/* YORA ARCHIVE（卒業フラグが立ったユーザーのみ表示） */}
             {archiveUnlocked && onOpenArchive && (
